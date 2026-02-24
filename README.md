@@ -25,17 +25,15 @@ To reduce redundancy, I collapsed structurally similar dummy variables and remov
 
 The churn distribution is:
 
-5174 non-churn
+- 5174 non-churn
 
-1869 churn
+- 1869 churn
 
-~27% churn rate
+- ~27% churn rate
 
 Since the imbalance is moderate, I decided not to use oversampling. Instead, handled it using:
 
-Class weighting
-
-Threshold tuning
+  Class weighting and Threshold tuning
 
 I lowered the prediction threshold from 0.5 to 0.3 to improve recall, since missing churners is more costly than false positives.
 
