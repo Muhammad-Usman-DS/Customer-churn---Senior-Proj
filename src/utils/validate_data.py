@@ -1,6 +1,29 @@
 import great_expectations as ge
 from typing import Tuple, List
 
+# This module is responsible for validating the raw data before it enters the ML pipeline.
+# We use Great Expectations to define a comprehensive set of expectations that the data must meet.
+# this function is for QUALITY CHECKS
+
+# this step is after loading the data (which is done in src/data/load_data.py) 
+# and before preprocessing (which is done in src/data/preprocess.py)
+# for example:
+#
+#      1.       in the "gender" column, we expect only "Male" and "Female" values, and no nulls. 
+#               If we find any other values or nulls, the validation will fail.
+#
+#      2.       in the "tenure" column, we expect numeric values between 0 and 120 (months).   
+#               If we find negative values, or values greater than 120, or nulls, the validation will fail.
+
+# So here we set what we expect to receive in the raw data, and if the data doesn't meet these expectations, 
+# we can catch it early and prevent bad data from entering our ML pipeline.
+
+# This is done for each feature, that's why the code is a bit long, we have over 20 features to validate, 
+# and each has its own set of expectations based on the original dataset and business logic.
+
+
+# Working as a function that can be called from the main training script (src/train.py) after loading the data and before preprocessing it
+# START here:
 
 def validate_telco_data(df) -> Tuple[bool, List[str]]:
     """

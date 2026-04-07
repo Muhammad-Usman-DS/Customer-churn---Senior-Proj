@@ -1,6 +1,18 @@
 import pandas as pd
 
 
+# AFTER preprocessing (which is done in src/data/preprocess.py. ------>), we have a clean dataset ready for feature engineering. 
+# This function applies the complete feature engineering pipeline, including binary encoding for 2-category features 
+# and 
+# one-hot encoding for multi-category features. The transformations must be exactly replicated in the serving pipeline to ensure
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
+
+
+# checks for exactly 2 unique values and applies label-encoding, otherwise returns unchanged for one-hot encoding: 
+
 def _map_binary_series(s: pd.Series) -> pd.Series:
     """
     Apply deterministic binary encoding to 2-category features.
@@ -37,6 +49,8 @@ def _map_binary_series(s: pd.Series) -> pd.Series:
     # Return unchanged - will be handled by one-hot encoding
     return s
 
+
+# checks for more than 2 categories should be handled by one-hot encoding, which is done in this function:
 
 def build_features(df: pd.DataFrame, target_col: str = "Churn") -> pd.DataFrame:
     """
@@ -104,3 +118,10 @@ def build_features(df: pd.DataFrame, target_col: str = "Churn") -> pd.DataFrame:
 
     print(f"✅ Feature engineering complete: {df.shape[1]} final features")
     return df
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
+
+
+# from here data goes into ---------> the model training function (src/models/train.py) where we train the XGBoost model.

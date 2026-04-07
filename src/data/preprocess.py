@@ -1,5 +1,10 @@
 import pandas as pd
 
+# AFTER validation (which is done in src/utils/validate_data.py), we can be confident about the data quality and structure.
+
+# Validation is done before this step, so we can assume the data is clean and meets our expectations. 
+# This function focuses on transforming the data into a format suitable for modeling, 
+# while ensuring that any transformations are consistent with the assumptions made during validation.
 
 def preprocess_data(df: pd.DataFrame, target_col: str = "Churn") -> pd.DataFrame:
     """

@@ -2,6 +2,12 @@ import optuna
 from xgboost import XGBClassifier
 from sklearn.model_selection import cross_val_score
 
+
+# AFTER training of the data (which is done in src/models/train.py -------> ) data now ready to be tuned
+
+# ------------------------------------------------------------------------------------------------------------------------------------------
+
+
 def tune_model(X, y):
     """
     Tunes an XGBoost model using Optuna.
@@ -30,3 +36,9 @@ def tune_model(X, y):
 
     print("Best Params:", study.best_params)
     return study.best_params
+
+# ------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+# data goes to be evaluated ------> (src/models/evaluate.py)

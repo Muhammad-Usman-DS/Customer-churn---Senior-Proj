@@ -6,6 +6,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import recall_score
 
+
+# AFTER Feature engineering (which is done in src/data/preprocess.py ------> ), we have a clean dataset ready for training. 
+# This function trains an XGBoost model and logs everything to MLflow for reproducibility and tracking.
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# 
+
 def train_model(df: pd.DataFrame, target_col: str):
     """
     Trains an XGBoost model and logs with MLflow.
@@ -30,6 +38,8 @@ def train_model(df: pd.DataFrame, target_col: str):
         eval_metric="logloss"
     )
 
+    # here we decide what metric we wanna log in MLflow:
+
     with mlflow.start_run():
         # Train model
         model.fit(X_train, y_train)
@@ -48,3 +58,10 @@ def train_model(df: pd.DataFrame, target_col: str):
         mlflow.log_input(train_ds, context="training")
 
         print(f"Model trained. Accuracy: {acc:.4f}, Recall: {rec:.4f}")
+
+
+# 
+# ------------------------------------------------------------------------------------------------------------------------------------------
+
+
+# data goes into --------> (src/models/tune.py) where we tune the model after this
