@@ -10,12 +10,12 @@ from data.load_data import load_data
 from data.preprocess import preprocess_data
 from features.build_features import build_features
 
-# === CONFIG ===
-DATA_PATH = "/Users/riadanas/Desktop/Telco Customer Churn MLE/data/raw/Telco-Customer-Churn.csv"  # adjust to your file path
+# CONFIG
+DATA_PATH = "/Users/usmangoat/Desktop/Portfolio Prorjects/Customer churn - Senior Proj/data/WA_Fn-UseC_-Telco-Customer-Churn.csv"  # adjust to your file path
 TARGET_COL = "Churn"
 
 def main():
-    print("=== Testing Phase 1: Load → Preprocess → Build Features ===")
+    print("Testing Phase 1: Load → Preprocess → Build Features")
 
     # 1. Load Data
     print("\n[1] Loading data...")
