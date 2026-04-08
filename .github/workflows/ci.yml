@@ -27,4 +27,4 @@ jobs:
           context: .
           file: ./dockerfile  # change if your Dockerfile has a different name or path
           push: true
-          tags: anasriad8/telco-fastapi:latest
+          tags: usmangoat/telco-fastapi:latest
