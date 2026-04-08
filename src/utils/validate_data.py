@@ -1,5 +1,6 @@
 import great_expectations as ge
 from typing import Tuple, List
+import pandas as pd
 
 # This module is responsible for validating the raw data before it enters the ML pipeline.
 # We use Great Expectations to define a comprehensive set of expectations that the data must meet.
@@ -37,6 +38,12 @@ def validate_telco_data(df) -> Tuple[bool, List[str]]:
     print("🔍 Starting data validation with Great Expectations...")
     
     # Convert pandas DataFrame to Great Expectations Dataset
+
+    # gpt fix:
+    df = df.copy()
+    df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
+
+
     ge_df = ge.dataset.PandasDataset(df)
     
     # === SCHEMA VALIDATION - ESSENTIAL COLUMNS ===

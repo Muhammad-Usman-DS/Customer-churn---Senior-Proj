@@ -10,7 +10,13 @@ import argparse
 import pandas as pd
 import mlflow
 import mlflow.sklearn
-from posthog import project_root
+
+
+# from posthog import project_root
+from pathlib import Path
+project_root = str(Path(__file__).resolve().parents[1])
+
+
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     classification_report, precision_score, recall_score,
