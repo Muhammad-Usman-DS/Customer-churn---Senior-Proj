@@ -1,0 +1,23 @@
+artifact_path: file:///Users/usmangoat/Desktop/Portfolio Prorjects/Customer churn
+  - Senior Proj/mlruns/509147863880743213/models/m-593daf1cbbd148b195fda93cdaaba7ef/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.9.6
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.6.1
+mlflow_version: 3.1.4
+model_id: m-593daf1cbbd148b195fda93cdaaba7ef
+model_size_bytes: 1378707
+model_uuid: m-593daf1cbbd148b195fda93cdaaba7ef
+prompts: null
+run_id: 488bb342cfdd4ba3aef01f802452e88c
+utc_time_created: '2026-04-08 05:59:01.008079'

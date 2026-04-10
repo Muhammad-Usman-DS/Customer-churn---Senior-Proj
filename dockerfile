@@ -15,11 +15,7 @@ RUN pip install --upgrade pip \
 # 5. Copy the entire project into the image
 COPY . .
 
-RUN mkdir -p /app/model
-
-COPY mlruns/509147863880743213/models/m-593daf1cbbd148b195fda93cdaaba7ef/artifacts /app/model
-COPY mlruns/509147863880743213/488bb342cfdd4ba3aef01f802452e88c/artifacts/feature_columns.txt /app/model/feature_columns.txt
-COPY mlruns/509147863880743213/488bb342cfdd4ba3aef01f802452e88c/artifacts/preprocessing.pkl /app/model/preprocessing.pkl
+COPY model/ /app/model/
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/src
