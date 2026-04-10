@@ -43,6 +43,7 @@ class CustomerData(BaseModel):
     """
     # Demographics
     gender: str                # "Male" or "Female"
+    SeniorCitizen: int         # 0 or 1
     Partner: str               # "Yes" or "No" - has partner
     Dependents: str            # "Yes" or "No" - has dependents
     
