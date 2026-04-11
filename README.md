@@ -2,11 +2,13 @@
 
 ### Predicting which customers will leave — before they do.
 
+**Live demo:** [Frontend (Vercel)](https://your-vercel-url.vercel.app) · [Backend API](https://telco-fastapi.onrender.com) · [API Docs](https://telco-fastapi.onrender.com/docs)
+
 ---
 
 ## Executive Summary
 
-This project builds a machine learning system that predicts whether a telecom customer is at risk of cancelling their subscription (churning). Using a dataset of 7,043 real customers, we trained an XGBoost model that correctly identifies **82.1% of all customers who will churn**, giving retention teams a prioritised list of at-risk customers to contact proactively. The system is deployed as a live web application with a custom React frontend and a FastAPI backend hosted on Google Cloud Run, accessible to any analyst with a browser — no coding required.
+This project builds a machine learning system that predicts whether a telecom customer is at risk of cancelling their subscription (churning). Using a dataset of 7,043 real customers, we trained an XGBoost model that correctly identifies **82.1% of all customers who will churn**, giving retention teams a prioritised list of at-risk customers to contact proactively. The system is deployed as a live web application with a custom React frontend and a FastAPI backend hosted on Render, accessible to any analyst with a browser — no coding required.
 
 ---
 
@@ -469,7 +471,7 @@ This feature elevates the tool from a simple prediction endpoint to a genuine **
 | **HTTP client** | Axios | Frontend-to-backend API communication |
 | **Containerisation** | Docker | Reproducible, portable deployment environment |
 | **Container registry** | Docker Hub | Stores and serves built Docker images |
-| **Backend hosting** | Google Cloud Run | Serverless container hosting for the FastAPI backend |
+| **Backend hosting** | Render | Container hosting for the FastAPI backend |
 | **Frontend hosting** | Vercel | Global CDN hosting for the React app |
 | **CI/CD** | GitHub Actions | Automated Docker build and push on every push to `main` |
 
@@ -504,13 +506,13 @@ Every push to the `main` branch automatically triggers the following pipeline:
 
 Every merged change is automatically packaged and published — no manual build steps, no "it works on my machine" problems.
 
-### Google Cloud Run (Backend)
+### Render (Backend)
 
-Cloud Run is a **serverless container platform** on Google Cloud. It pulls the `usmangoat/telco-fastapi:latest` image from Docker Hub and runs it on demand. Key properties:
+Render is a cloud platform that runs the Docker container from Docker Hub. Key properties:
 
-- **Scales to zero** when there is no traffic — no idle compute costs
-- **Scales out automatically** when multiple users hit the API simultaneously
-- Exposes the FastAPI application on a public HTTPS URL
+- Pulls `usmangoat/telco-fastapi:latest` from Docker Hub and runs it as a web service
+- Exposes the FastAPI application on a public HTTPS URL: `https://telco-fastapi.onrender.com`
+- Free tier sleeps after 15 minutes of inactivity — first request after sleep takes ~30 seconds to wake up
 - The frontend's environment variable `VITE_API_URL` points to this URL
 
 ### Vercel (Frontend)
@@ -581,4 +583,4 @@ docker run -p 8000:8000 telco-churn-api
 
 ---
 
-*Built by Muhammad Usman — Senior Project, 2025.*
+*Built by Syed Muhammad Usman — Senior Project, 2025.*

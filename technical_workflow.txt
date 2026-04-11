@@ -684,7 +684,7 @@ An "endpoint" is a specific URL that the API listens on. Our API has four:
 
   GET  /
   The health check. If you visit this URL, the API replies {"status": "ok"}.
-  This confirms the server is running. Used by Google Cloud Run to check
+  This confirms the server is running. Used by Render to check
   if the container is healthy.
 
   POST /predict
@@ -719,7 +719,7 @@ at address A cannot make network requests to a server at address B.
 This prevents malicious websites from quietly making requests on your behalf.
 
 But in our project, the frontend lives on Vercel (one address) and the backend
-lives on Google Cloud Run (a different address). For the frontend to call the
+lives on Render (a different address). For the frontend to call the
 backend, we need to explicitly allow it. This is done using "CORS" (Cross-Origin
 Resource Sharing) middleware in FastAPI:
 
@@ -885,7 +885,7 @@ SECTION 12: HOW THE FRONTEND AND BACKEND ARE CONNECTED
 Defined in: frontend/src/api.js
 
 The frontend and backend are two completely separate programs running in
-completely different places (Vercel and Google Cloud Run). They communicate
+completely different places (Vercel and Render). They communicate
 using HTTP — the same protocol your browser uses to load web pages.
 
 The frontend uses a JavaScript library called Axios to make HTTP requests.
@@ -904,7 +904,7 @@ The connection configuration lives entirely in frontend/src/api.js:
 
 What this means:
   - BASE_URL reads from an environment variable (VITE_API_URL). In production,
-    this is set to the Google Cloud Run URL. In development, it defaults to
+    this is set to the Render URL. In development, it defaults to
     http://localhost:8000 (your local machine).
   - predictSingle sends a POST request with customer data to /predict
   - predictBatch sends a POST request with a CSV file to /predict-batch
@@ -925,8 +925,8 @@ page reload.
 THE BROWSER'S ROLE IN CORS
 ---------------------------
 
-When the frontend (on Vercel) sends a request to the backend (on Cloud Run),
-the browser first sends a "preflight" request to ask Cloud Run: "Is it OK for
+When the frontend (on Vercel) sends a request to the backend (on Render),
+the browser first sends a "preflight" request to ask Render: "Is it OK for
 a page from Vercel's address to make requests to you?" The backend's CORS
 middleware answers "yes" in the response headers. Only then does the browser
 send the actual request. This all happens automatically and invisibly to the
@@ -1103,10 +1103,10 @@ The steps it performs:
   name: usmangoat/telco-fastapi:latest
 
   "latest" is a tag — like a version label. Every new build overwrites the
-  "latest" tag, so Google Cloud Run always pulls the most recent version.
+  "latest" tag, so Render always pulls the most recent version.
 
 The entire pipeline takes about 3-5 minutes to run. After it completes, the
-new version of the backend is available on Docker Hub and Google Cloud Run
+new version of the backend is available on Docker Hub and Render
 can be told to pull the new image.
 
 
@@ -1117,29 +1117,29 @@ SECTION 15: WHAT IS GOOGLE CLOUD RUN AND VERCEL
 GOOGLE CLOUD RUN (BACKEND HOSTING)
 ------------------------------------
 
-Google Cloud Run is a "serverless container hosting" service. Here is what
+Render is a "serverless container hosting" service. Here is what
 that means:
 
   "Serverless" does NOT mean there is no server. It means YOU do not have to
   manage, configure, or maintain any servers. Google handles all of that.
   You just provide a Docker container and say "run this for me."
 
-  "Container hosting" means Cloud Run knows how to pull a Docker image from
+  "Container hosting" means Render knows how to pull a Docker image from
   Docker Hub and run it.
 
-When you deploy the backend to Cloud Run, you tell it:
+When you deploy the backend to Render, you tell it:
   - Which Docker image to use (usmangoat/telco-fastapi:latest)
   - How much CPU and memory to give it
   - Which port to listen on (8000)
 
-Cloud Run then:
+Render then:
   - Gives you a public HTTPS URL (like https://telco-api-xxxx.run.app)
   - Starts the container when requests arrive
   - Shuts the container down when there is no traffic ("scales to zero")
   - Spins up more instances automatically if many requests arrive at once
 
 The "scales to zero" feature means you only pay when the API is actually being
-used — there is no cost for idle time. This makes Cloud Run very cost-efficient
+used — there is no cost for idle time. This makes Render very cost-efficient
 for APIs with intermittent traffic.
 
 VERCEL (FRONTEND HOSTING)
@@ -1160,7 +1160,7 @@ This makes page loads very fast for users anywhere in the world.
 Vercel also automatically assigns a public URL (like https://your-app.vercel.app)
 and handles HTTPS (secure connections) for free.
 
-Just like Cloud Run, Vercel redeploys automatically when you push to GitHub
+Just like Render, Vercel redeploys automatically when you push to GitHub
 (if configured to watch your repository). So both the frontend AND the backend
 are automatically rebuilt and redeployed when new code is merged.
 
@@ -1200,8 +1200,8 @@ STEP 3: ANALYST CLICKS "PREDICT CHURN"
 
 STEP 4: THE HTTP REQUEST TRAVELS TO THE BACKEND
   - The request leaves the analyst's browser and travels over the internet
-  - It arrives at Google Cloud Run's servers
-  - If the container is sleeping (scaled to zero), Cloud Run wakes it up
+  - It arrives at Render's servers
+  - If the container is sleeping (scaled to zero), Render wakes it up
     (this "cold start" might take 2-3 seconds the first time, but subsequent
      requests are instant)
   - The FastAPI server receives the request on port 8000
@@ -1367,7 +1367,7 @@ CI/CD DEPENDENCIES
     TRIGGERED BY → pushes to the main branch on GitHub
     USES → dockerfile                     (builds the Docker image)
     PUSHES TO → Docker Hub (usmangoat/telco-fastapi:latest)
-    FEEDS INTO → Google Cloud Run         (which pulls from Docker Hub)
+    FEEDS INTO → Render         (which pulls from Docker Hub)
 
 COMPLETE CHAIN (end to end):
   Kaggle CSV
@@ -1380,10 +1380,10 @@ COMPLETE CHAIN (end to end):
     → dockerfile packages model/ + src/
     → .github/workflows/ci.yml builds Docker image on every push
     → Docker Hub stores the image
-    → Google Cloud Run runs the image
+    → Render runs the image
       → src/app/main.py (FastAPI) starts
       → src/serving/inference.py loads model on startup
-    → frontend/src/api.js calls the Cloud Run URL
+    → frontend/src/api.js calls the Render URL
     → frontend/src/pages/*.jsx display results to the user
     → Vercel hosts the frontend
 
