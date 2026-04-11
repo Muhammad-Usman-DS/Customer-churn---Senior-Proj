@@ -1,0 +1,1392 @@
+================================================================================
+  TELCO CUSTOMER CHURN PREDICTION — TECHNICAL WORKFLOW GUIDE
+  A plain-English explanation of how the project works, file by file.
+================================================================================
+
+This document is written for someone who is curious about how this project
+works but does not have a technical background. Every concept is explained
+before it is used. Analogies are used throughout. Read from top to bottom for
+the full picture, or jump to any section that interests you.
+
+
+================================================================================
+SECTION 1: WHAT THE PROJECT DOES — THE BIG PICTURE
+================================================================================
+
+Imagine you work for a phone company. Every month, some of your customers
+decide to cancel their subscription and switch to a competitor. This is called
+"churn." The problem is that by the time a customer calls to cancel, it is often
+too late to save them — they have already made up their mind.
+
+This project builds a computer program that reads information about a customer
+(like how long they have been with the company, what type of contract they have,
+and how much they pay each month) and predicts, BEFORE the customer calls to
+cancel, whether they are likely to leave soon. The program produces a
+"churn probability" — a number between 0% and 100% that tells you how likely
+that customer is to leave.
+
+For example:
+- A customer with a churn probability of 85% is in serious danger of leaving.
+  A retention agent should call them immediately.
+- A customer with a churn probability of 12% is very likely to stay.
+  No immediate action is needed.
+
+The system is built in two main parts:
+
+  PART 1 — THE BRAIN (the backend)
+  A Python program that was "trained" on data from 7,043 past customers to
+  learn the patterns that predict churn. This trained program lives inside a
+  web server that can answer questions like "given this customer's data, what
+  is their churn probability?" in under a second.
+
+  PART 2 — THE FACE (the frontend)
+  A website built with a tool called React. It has five pages. A business
+  analyst opens the website, types in a customer's details, and immediately
+  sees the churn probability — no coding required. The website is just a
+  window that sends the customer data to Part 1 and displays the answer.
+
+Everything is automated: when a developer makes a change to the code and saves
+it to GitHub (a code storage service), the system automatically rebuilds and
+redeploys the backend and frontend without any manual steps.
+
+
+================================================================================
+SECTION 2: WHAT IS A MACHINE LEARNING MODEL AND WHAT DOES "TRAINING" MEAN?
+================================================================================
+
+A "machine learning model" is a mathematical function that, given some inputs
+(customer data), produces an output (churn probability). But unlike a normal
+computer program where a human writes exact rules ("if tenure < 6 AND
+contract = month-to-month, then predict churn"), a machine learning model
+LEARNS the rules by studying examples.
+
+Think of it like teaching a child to recognise a dog. You do not hand the child
+a manual with 1,000 rules about what makes something a dog. Instead, you show
+the child thousands of pictures and say "this is a dog" or "this is not a dog."
+Over time, the child learns the patterns on their own. A machine learning model
+does the same thing with data.
+
+"Training" is the process of showing the model thousands of examples (in our
+case, 5,634 customer records) along with the correct answer for each one
+(did this customer actually churn: yes or no?). The model adjusts its internal
+numbers — called "parameters" or "weights" — repeatedly until it gets good at
+predicting the correct answer.
+
+Once training is finished, the model is "frozen" — its parameters are saved
+to a file (model.pkl). From that point on, you can give the model a new
+customer it has never seen before, and it will use those learned patterns to
+produce a churn probability for that customer. This is called "inference" or
+"serving."
+
+
+THE MODEL WE USED: XGBOOST
+----------------------------
+
+We used a model called XGBoost (eXtreme Gradient Boosting). Here is what
+that means in plain English:
+
+  "Boosting" means the model builds many simple decision trees one at a time.
+  Each new tree focuses specifically on the mistakes that all the previous
+  trees made. It is like a team of specialists where each new specialist is
+  hired to fix the problems the previous ones could not solve.
+
+  "Gradient" refers to the mathematical method used to figure out which
+  mistakes to focus on.
+
+  "Extreme" refers to clever engineering tricks that make the process very fast
+  and efficient.
+
+The result is a very powerful model that excels at learning complex patterns
+in structured data (like tables of customer information), which is exactly
+what we have here.
+
+The final model is stored in:
+  model/model.pkl            -- the trained model itself
+  model/feature_columns.txt  -- the exact list of 30 features the model expects
+  model/preprocessing.pkl    -- saved preprocessing metadata
+  model/model_metrics.json   -- the performance scores from training
+  model/MLmodel              -- MLflow's metadata file describing the model
+
+
+================================================================================
+SECTION 3: THE DATA PIPELINE — FROM RAW DATA TO TRAINING-READY DATA
+================================================================================
+
+Before training can happen, the raw customer data has to go through several
+preparation steps. Think of it like preparing ingredients before cooking —
+you have to wash, peel, and chop before anything goes into the pot.
+
+The raw data lives in:
+  data/WA_Fn-UseC_-Telco-Customer-Churn.csv
+
+This file was downloaded from Kaggle (a website where companies and researchers
+share datasets for data science competitions and projects). It contains 7,043
+rows (one per customer) and 21 columns (one per piece of information about
+that customer).
+
+The data pipeline runs in this order:
+
+  STEP 1: LOAD        src/data/load_data.py
+  STEP 2: VALIDATE    src/utils/validate_data.py
+  STEP 3: PREPROCESS  src/data/preprocess.py
+  STEP 4: FEATURES    src/features/build_features.py
+
+All four steps are called in sequence by:
+  scripts/run_pipeline.py
+
+This is the master script that runs the entire training workflow.
+
+
+STEP 1 — LOADING THE DATA  (src/data/load_data.py)
+----------------------------------------------------
+
+This file's only job is to read the CSV file from disk and load it into
+memory as a "DataFrame" — think of a DataFrame as a spreadsheet in memory that
+Python can work with.
+
+It also does basic error handling: if the file does not exist or cannot be
+read, it raises an informative error message rather than crashing with a
+confusing technical message.
+
+After this step: we have a DataFrame with 7,043 rows and 21 columns in memory.
+
+
+STEP 2 — VALIDATING THE DATA  (src/utils/validate_data.py)
+------------------------------------------------------------
+
+Before we train any model, we want to make sure the data is what we expect
+it to be. This is handled using a tool called GREAT EXPECTATIONS.
+
+WHAT IS GREAT EXPECTATIONS?
+
+Great Expectations is a Python library that lets you define a set of rules
+("expectations") about what your data should look like, and then
+automatically checks whether the actual data follows those rules.
+
+Think of it like a quality inspector at a factory. Before any raw material is
+used in production, the inspector checks a checklist:
+  - Is the material the right type?
+  - Are there any defects?
+  - Is the quantity correct?
+
+If the material fails the checklist, it is rejected before it damages any
+finished products. Great Expectations does the same thing for data.
+
+The expectations we defined for this dataset:
+  - The file must have all the expected column names (no typos, no missing columns)
+  - The "tenure" and "MonthlyCharges" columns must not have any blank (null) values
+  - The "Churn" column must only contain 0 or 1 (yes or no), not random text
+  - The "TotalCharges" column must be a number, not a string
+  - The total number of rows must exceed a minimum threshold
+
+If any expectation fails:
+  - The failure is recorded and logged
+  - The pipeline STOPS immediately
+  - An error message explains exactly what went wrong
+
+WHY THIS MATTERS: Without validation, a bug upstream (like a blank column in
+an export from the CRM system) could silently corrupt the training data,
+producing a model that makes terrible predictions. Great Expectations catches
+these problems before they cause damage.
+
+After this step: we have confirmed the data is valid and can proceed safely.
+
+
+STEP 3 — PREPROCESSING THE DATA  (src/data/preprocess.py)
+-----------------------------------------------------------
+
+"Preprocessing" means cleaning the data — fixing problems and converting it
+into a consistent format. Think of it like washing and peeling vegetables
+before cooking.
+
+The specific steps performed:
+
+  1. DROPPING THE CUSTOMER ID COLUMN
+     The raw data has a "CustomerID" column (like "7590-VHVEG") that is just
+     a unique label for each customer. It has zero predictive power — knowing
+     that a customer's ID is "7590-VHVEG" tells you nothing about whether they
+     will churn. If we left it in, the model might accidentally try to learn
+     patterns from ID numbers, which would be meaningless. So we drop it.
+
+  2. FIXING THE TOTALCHARGES COLUMN
+     In the raw CSV, the "TotalCharges" column is stored as text (a string),
+     not as a number. This is because some new customers with 0 months of
+     tenure have a blank space instead of a zero. Python reads blank spaces
+     as text, not numbers. We convert TotalCharges to a proper number and
+     replace any blank spaces with 0.
+
+  3. ENCODING THE TARGET COLUMN (CHURN)
+     The "Churn" column in the raw data says "Yes" or "No." Machine learning
+     models need numbers, not words. We convert: Yes → 1, No → 0.
+
+  4. STRIPPING WHITESPACE FROM COLUMN NAMES
+     Sometimes CSV files have hidden spaces in column names (e.g., " tenure"
+     instead of "tenure"). These invisible spaces cause bugs later when you
+     try to reference a column by name. We strip all whitespace from column
+     names as a precaution.
+
+After this step: we have a clean, consistently-typed DataFrame ready for
+feature engineering.
+
+
+STEP 4 — FEATURE ENGINEERING  (src/features/build_features.py)
+----------------------------------------------------------------
+
+"Feature engineering" is the process of converting the cleaned data into the
+specific numerical format that the machine learning model requires.
+
+A machine learning model is a mathematical function. Mathematical functions
+only work with numbers. But many of our columns contain words, not numbers:
+
+  - "Contract" might say "Month-to-month", "One year", or "Two year"
+  - "Gender" might say "Male" or "Female"
+  - "InternetService" might say "DSL", "Fiber optic", or "No"
+
+We need to convert all of these words into numbers. Feature engineering is how
+we do that. (This is explained in more detail in Section 4 below.)
+
+The result of this step: a DataFrame where EVERY column is a number. The 21
+original columns become approximately 30 numerical columns, ready to be fed
+into the XGBoost model.
+
+The exact list of final column names is saved to:
+  model/feature_columns.txt
+  artifacts/feature_columns.json
+
+These saved lists are CRITICAL. When the model is deployed and makes
+predictions on new customers, it must receive the data in EXACTLY the same
+format (same columns, same order) as it was trained on. If the order is wrong,
+the model will produce garbage predictions. Saving and loading this list
+guarantees consistency.
+
+
+================================================================================
+SECTION 4: WHAT IS FEATURE ENGINEERING AND WHY IT MATTERS
+================================================================================
+
+Let us go deeper on feature engineering because it is one of the most
+important steps in the whole pipeline.
+
+BINARY ENCODING
+---------------
+
+Some columns have exactly two possible values. For these, we simply map one
+value to 0 and the other to 1. This is called "binary encoding."
+
+Examples:
+  gender         → Female = 0,  Male = 1
+  Partner        → No = 0,      Yes = 1
+  Dependents     → No = 0,      Yes = 1
+  PhoneService   → No = 0,      Yes = 1
+  PaperlessBilling → No = 0,    Yes = 1
+
+These mappings are defined in a dictionary called BINARY_MAP inside the file
+src/serving/inference.py, and the SAME mappings are applied during both
+training (in build_features.py) and prediction (in inference.py). This
+consistency is critical — if training encodes "Female" as 0 and serving
+encodes "Female" as 1, the model will be reading the wrong inputs and make
+wrong predictions.
+
+ONE-HOT ENCODING
+----------------
+
+Some columns have three or more possible values. For these, binary encoding
+does not work because the numbers would imply a false order. For example,
+if we encoded Contract as:
+  Month-to-month = 1
+  One year       = 2
+  Two year       = 3
+
+...the model might conclude that "Two year" is mathematically three times
+something, which makes no sense. "Two year" is not three times "Month-to-month."
+
+Instead, we use "one-hot encoding." This creates a brand new binary column
+for each possible value:
+
+  Original column:  Contract = "Two year"
+
+  After one-hot encoding:
+    Contract_One_year  = 0
+    Contract_Two_year  = 1
+
+  (Month-to-month is implied when both are 0 — this is the "drop first" part)
+
+Now the model can read these as independent signals. If Contract_Two_year = 1,
+the model knows this customer has a two-year contract without any false
+mathematical ordering.
+
+We apply one-hot encoding to: Contract, InternetService, MultipleLines,
+OnlineSecurity, OnlineBackup, DeviceProtection, TechSupport, StreamingTV,
+StreamingMovies, and PaymentMethod.
+
+VIF ANALYSIS — REMOVING REDUNDANT INFORMATION
+----------------------------------------------
+
+VIF stands for "Variance Inflation Factor." It is a statistical test that
+detects when two or more columns in your data are carrying almost exactly the
+same information.
+
+For example, "TotalCharges" in the raw data is approximately equal to
+"MonthlyCharges × tenure" (if you pay $50/month for 10 months, your total
+is roughly $500). These three columns are strongly correlated.
+
+If you give a model three columns that all say roughly the same thing, the
+model does not get three times the information — it gets confused noise.
+The model may end up attributing importance to the WRONG column just because
+it appears first, or it may split its attention between redundant signals.
+
+VIF analysis identifies which columns are highly correlated with others.
+We then collapsed or removed the redundant ones. The result is a cleaner,
+more informative set of features that the model can learn from more reliably.
+
+THE IMPORTANCE OF MATCHING TRAINING AND SERVING TRANSFORMATIONS
+---------------------------------------------------------------
+
+Here is a subtle but critical point: the feature engineering done during
+TRAINING must be IDENTICAL to the feature engineering done during SERVING
+(when the model makes real predictions).
+
+If during training we encoded "Fiber optic" as one column name but during
+serving we accidentally used a slightly different encoding or column order,
+the model would be receiving different inputs than it was trained on, and
+its predictions would be wrong.
+
+This is called "train-serve skew" and it is one of the most common bugs in
+deployed machine learning systems.
+
+To prevent it, we:
+  1. Save the exact feature column names and order to model/feature_columns.txt
+  2. Use the same BINARY_MAP dictionary in both build_features.py and
+     inference.py
+  3. Use pd.get_dummies(drop_first=True) in both places with the same columns
+  4. Call df.reindex(columns=FEATURE_COLS, fill_value=0) in inference.py to
+     ensure the serving output always has exactly the right columns in exactly
+     the right order, even if the one-hot encoding produced a different set
+
+
+================================================================================
+SECTION 5: WHAT IS MODEL TRAINING AND WHAT XGBOOST IS DOING
+================================================================================
+
+Training is handled by: src/models/train.py  and  scripts/run_pipeline.py
+
+Here is what happens step by step during training:
+
+STEP 1: SPLIT THE DATA INTO TRAINING AND TESTING SETS
+------------------------------------------------------
+
+We split the 7,043 customers into two groups:
+  - Training set: 5,634 customers (80%) — the model learns from these
+  - Test set:     1,409 customers (20%) — we use these to check how well the
+                                          model learned
+
+The split is "stratified," which means we make sure the same 26.5% churn rate
+exists in BOTH sets. Without stratification, by bad luck we might put all the
+churners into one set and the model would not learn properly.
+
+The test set is kept completely separate from training. The model never sees
+those 1,409 customers during learning. This way, when we test performance,
+we are measuring how well the model does on TRULY new, unseen data — which
+reflects real-world performance.
+
+STEP 2: HANDLE CLASS IMBALANCE
+-------------------------------
+
+In our dataset, 73.5% of customers did NOT churn and only 26.5% DID churn.
+This is called "class imbalance." If we train the model on imbalanced data
+without adjustment, the model will learn that predicting "no churn" for
+everyone is a good strategy — it would be right 73.5% of the time while being
+completely useless for the actual task of finding churners.
+
+We handle this with a parameter called "scale_pos_weight" in XGBoost.
+This tells the model to treat each missed churner as more costly than a missed
+non-churner during learning. The value is calculated as:
+
+  scale_pos_weight = count(non-churners) / count(churners)
+                   ≈ 4,139 / 1,495  ≈  2.77
+
+This means: when the model misclassifies a churner, it treats that mistake as
+2.77 times more serious than misclassifying a non-churner. This pushes the
+model to be more sensitive to churn signals.
+
+STEP 3: BUILD THE MODEL
+------------------------
+
+XGBoost builds hundreds of small "decision trees" one at a time. A decision
+tree is like a flowchart: "Is tenure less than 6 months? Yes → branch left.
+Is monthly charge over $80? Yes → predict churn."
+
+Each tree on its own is not very powerful (these simple flowcharts are called
+"weak learners"). But XGBoost combines them cleverly:
+
+  - Tree 1 is trained on the full data. It makes some mistakes.
+  - Tree 2 is trained specifically to correct the mistakes that Tree 1 made.
+  - Tree 3 is trained specifically to correct the mistakes that Trees 1 and 2
+    made together.
+  - ...and so on, for 301 trees (the number found by hyperparameter tuning).
+
+Each tree's contribution to the final prediction is weighted by the
+"learning rate" (0.034) — a small number that prevents any single tree from
+having too much influence. This is like slowly building consensus rather than
+making one big decisive guess.
+
+STEP 4: SAVE THE MODEL
+-----------------------
+
+Once training is complete, the model is serialized — converted from a live
+Python object in memory into a file that can be saved to disk and loaded later.
+This file is model/model.pkl. It is approximately 1.3 MB in size.
+
+The model is saved in two formats:
+  1. MLflow's standard format (inside mlruns/) — used for experiment tracking
+  2. As model.pkl + MLmodel in the model/ folder — used for production serving
+
+
+================================================================================
+SECTION 6: WHAT IS HYPERPARAMETER TUNING AND WHY IT MATTERS (OPTUNA)
+================================================================================
+
+Handled by: src/models/tune.py
+
+A machine learning model has two types of settings:
+
+  TYPE 1: PARAMETERS — these are the internal numbers the model learns during
+  training (for XGBoost, these are the values inside each of the 301 trees).
+  The model learns these automatically from data.
+
+  TYPE 2: HYPERPARAMETERS — these are settings that control HOW the model
+  learns. They must be chosen BEFORE training begins. Examples:
+    - How many trees to build (n_estimators)?
+    - How deep should each tree be allowed to grow (max_depth)?
+    - How big should the correction be at each step (learning_rate)?
+
+Choosing bad hyperparameters can mean the model never learns properly or
+overfits (memorises the training data without learning general patterns).
+Choosing good hyperparameters is crucial for performance.
+
+WHAT IS OPTUNA?
+---------------
+
+Optuna is a Python library that automates the search for the best
+hyperparameters. Instead of a human manually trying different combinations,
+Optuna runs a series of "trials." Each trial:
+  1. Picks a combination of hyperparameters to try
+  2. Trains a model with those hyperparameters
+  3. Measures the model's performance (in our case, Recall on a validation set)
+  4. Records the result
+
+After each trial, Optuna uses a smart algorithm called TPE (Tree-structured
+Parzen Estimators) to decide which combination to try next. TPE is essentially
+a model that learns which hyperparameter regions have been most promising so
+far and concentrates exploration there.
+
+Think of it like looking for the highest point in a hilly landscape in the dark
+with a flashlight. A naive approach would search the entire landscape randomly.
+Optuna's approach is smarter: after exploring several spots and finding that the
+north-east region seems higher, it focuses more of its remaining search there.
+
+We ran 20 trials. The best combination found was:
+  n_estimators     = 301  (number of trees)
+  learning_rate    = 0.034 (step size for each correction)
+  max_depth        = 7    (how deep each tree can grow)
+  subsample        = 0.95 (fraction of training rows used per tree)
+  colsample_bytree = 0.98 (fraction of features considered per tree)
+
+WHY DID WE OPTIMISE FOR RECALL AND NOT ACCURACY?
+-------------------------------------------------
+
+"Accuracy" is simply: out of all predictions, how many were correct? This
+sounds good but is misleading when the two types of wrong answers have very
+different consequences.
+
+Consider the cost of each type of error:
+
+  ERROR TYPE 1 (False Negative — missing a churner):
+  The model says "this customer is fine" but they actually leave.
+  The company loses this customer FOREVER — their entire future subscription
+  revenue is gone. This could be hundreds or thousands of dollars over the
+  customer's lifetime.
+
+  ERROR TYPE 2 (False Positive — false alarm):
+  The model says "this customer is at risk" but they were going to stay.
+  The retention team calls them unnecessarily. Cost: maybe $5-10 in agent time,
+  plus a possible small discount offered.
+
+Missing a churner costs 100x or more compared to a false alarm. Therefore,
+we want the model to minimise missed churners — we want high "Recall."
+
+Recall = (churners correctly caught) / (all real churners)
+       = 308 / 375  ≈  82.1%
+
+We tuned Optuna to maximise Recall, ensuring that finding the best
+hyperparameters was guided by the business cost structure, not a generic
+accuracy metric.
+
+
+================================================================================
+SECTION 7: WHAT IS MLFLOW AND WHY WE USE IT
+================================================================================
+
+Used in: scripts/run_pipeline.py  (logging throughout)
+Stored in: mlruns/  (gitignored — local only)
+
+Imagine you are a scientist running experiments to find the best formula for
+a new medicine. Every time you run an experiment, you write down in your lab
+notebook: which formula you tested, what quantities you used, and what results
+you got. If you ever want to go back and compare experiment 12 with experiment
+7, you can just look up your notes.
+
+MLflow is a digital lab notebook for machine learning experiments.
+
+Every time we run the training pipeline (scripts/run_pipeline.py), MLflow
+automatically records:
+
+  PARAMETERS (the settings we chose):
+    - Which model we used (XGBoost)
+    - The classification threshold (0.35)
+    - The test/train split ratio (0.20)
+
+  METRICS (the results we measured):
+    - Recall, Precision, F1 Score, ROC-AUC
+    - Training time in seconds
+    - Inference time in seconds
+    - Whether the data validation passed (1) or failed (0)
+
+  ARTIFACTS (the files produced):
+    - The trained model file (in MLflow's standard format)
+    - The feature column list (feature_columns.txt)
+    - The preprocessing metadata (preprocessing.pkl)
+    - Any failed validation reports (failed_expectations.json, if any)
+
+You can view all of this in a web interface by running the command:
+  mlflow ui
+
+This opens a browser-based dashboard showing all past experiments in a table.
+You can compare runs side by side — for example, comparing the version with
+threshold 0.35 versus threshold 0.5, or before versus after Optuna tuning.
+
+The mlruns/ folder (where all this data is stored locally) is listed in
+.gitignore. It is machine-specific and very large. For production, the final
+model is copied from mlruns/ into the model/ folder, which IS included in
+the codebase and gets packaged into the Docker container.
+
+
+================================================================================
+SECTION 8: WHAT IS DOCKER AND WHY IT IS NEEDED
+================================================================================
+
+Defined in: dockerfile
+
+Here is a common software problem: a program works perfectly on the developer's
+computer but breaks on the server, or on a colleague's machine.
+
+Why? Because computers have different:
+  - Operating systems (Windows vs macOS vs Linux)
+  - Python versions (3.9, 3.10, 3.11...)
+  - Installed libraries and their versions
+  - Environment settings and file paths
+
+Docker solves this by creating a "container" — a self-contained environment
+that packages the application together with EVERYTHING it needs to run:
+  - The exact operating system layer
+  - The exact Python version
+  - Every Python library at the exact version specified in requirements.txt
+  - The application code itself
+  - The trained model files
+
+ANALOGY: SHIPPING CONTAINERS
+-----------------------------
+
+Before international shipping containers were invented, cargo was loaded
+individually onto ships — each item packed differently, often incompatible with
+different ships and ports. Shipping was slow, expensive, and full of damage.
+
+Shipping containers standardised everything: one standard-sized steel box that
+fits any ship, any truck, any port, anywhere in the world. You pack your goods
+in New York, seal the container, and it arrives in Shanghai unchanged.
+
+Docker containers are the same idea for software. You package your application
+in a Docker container on your laptop. That exact same container runs on a
+server in Google Cloud, on a colleague's computer, or anywhere else —
+identically, every time.
+
+THE DOCKERFILE: THE RECIPE FOR THE CONTAINER
+---------------------------------------------
+
+The dockerfile is a plain-text recipe that tells Docker how to build the
+container. Our dockerfile does the following steps:
+
+  1. START with the official Python 3.11 "slim" base image
+     (a minimal Linux system with Python pre-installed)
+
+  2. SET the working directory to /app inside the container
+     (all files will live here)
+
+  3. COPY requirements.txt into the container first
+     (this is done separately so Docker can cache this step — if requirements
+     haven't changed, Docker skips reinstalling everything)
+
+  4. INSTALL all Python packages from requirements.txt using pip
+
+  5. COPY the entire project code into the container
+
+  6. COPY the model/ folder specifically (ensuring the trained model is inside)
+
+  7. SET environment variables:
+     PYTHONUNBUFFERED=1    → ensures log messages print immediately
+     PYTHONPATH=/app/src   → tells Python where to find the src/ modules
+
+  8. EXPOSE port 8000
+     (tells Docker that this container will listen on port 8000)
+
+  9. START the FastAPI server when the container runs:
+     python -m uvicorn src.app.main:app --host 0.0.0.0 --port 8000
+
+Once built, this container can be run anywhere with the command:
+  docker run -p 8000:8000 <image-name>
+
+
+================================================================================
+SECTION 9: WHAT IS AN API AND WHAT FASTAPI DOES
+================================================================================
+
+Defined in: src/app/main.py
+
+API stands for "Application Programming Interface." It is a way for two
+different programs to talk to each other over the internet using a standardised
+format.
+
+ANALOGY: THE WAITER
+--------------------
+
+Imagine you are in a restaurant. You (the customer) do not walk into the kitchen
+and cook your own food. The kitchen is complex and you do not know how it works.
+Instead, you interact with a WAITER.
+
+You tell the waiter what you want (your order). The waiter takes that request
+to the kitchen, the kitchen prepares the food, and the waiter brings the
+result back to you. You never need to know how the kitchen works.
+
+In our system:
+  - YOU are the frontend website (React app)
+  - The WAITER is the FastAPI application
+  - The KITCHEN is the machine learning model and inference pipeline
+
+The frontend (the website) does not know how to run a machine learning model.
+It just sends a "request" to the FastAPI API: "Here is a customer's data.
+What is their churn probability?" The API takes that request, passes the data
+through the inference pipeline, and returns the answer back to the website.
+
+THE API ENDPOINTS
+-----------------
+
+An "endpoint" is a specific URL that the API listens on. Our API has four:
+
+  GET  /
+  The health check. If you visit this URL, the API replies {"status": "ok"}.
+  This confirms the server is running. Used by Google Cloud Run to check
+  if the container is healthy.
+
+  POST /predict
+  The main prediction endpoint. The frontend sends 19 pieces of customer
+  information (as a JSON object), and the API returns:
+    - prediction: "Likely to churn" or "Not likely to churn"
+    - probability: a number like 73.2 (the % churn probability)
+    - risk_level: "High", "Medium", or "Low"
+
+  POST /predict-batch
+  The bulk prediction endpoint. Instead of one customer at a time, the
+  frontend uploads a CSV file containing many customers. The API loops through
+  every row, runs the inference pipeline on each one, and returns a list of
+  all the results.
+
+  GET  /feature-importance
+  Returns the XGBoost model's feature importance scores — numbers that show
+  which customer attributes (like "tenure" or "Contract type") the model
+  considers most important for predicting churn. The Insights page uses this
+  to draw a bar chart.
+
+  GET  /model-stats
+  Returns the model's performance metrics (Recall, Precision, F1, ROC-AUC)
+  stored in model/model_metrics.json. The Insights page displays these as
+  metric cards.
+
+CORS — WHY THE FRONTEND CAN CALL THE BACKEND
+--------------------------------------------
+
+Normally, browsers have a security rule called "Same-Origin Policy": a website
+at address A cannot make network requests to a server at address B.
+This prevents malicious websites from quietly making requests on your behalf.
+
+But in our project, the frontend lives on Vercel (one address) and the backend
+lives on Google Cloud Run (a different address). For the frontend to call the
+backend, we need to explicitly allow it. This is done using "CORS" (Cross-Origin
+Resource Sharing) middleware in FastAPI:
+
+  app.add_middleware(
+      CORSMiddleware,
+      allow_origins=["*"],  -- allow any origin (for development)
+      ...
+  )
+
+This tells the browser: "Yes, it is allowed for the frontend to call this API
+even though they are on different addresses." In a stricter production setup,
+"*" would be replaced with the specific Vercel URL.
+
+
+================================================================================
+SECTION 10: THE INFERENCE PIPELINE — HOW A PREDICTION IS MADE AT RUNTIME
+================================================================================
+
+Defined in: src/serving/inference.py
+
+This is the most technically important file in the backend. It is loaded once
+when the FastAPI server starts and stays in memory for the lifetime of the
+server. Every prediction request passes through this file.
+
+Here is what happens when the /predict endpoint receives a customer's data:
+
+PHASE 1: STARTUP (happens once when the server starts)
+-------------------------------------------------------
+
+When the server starts, inference.py runs its "module-level" code:
+
+  a) LOAD THE MLFLOW MODEL
+     The file model/model.pkl is loaded into memory. This is the trained
+     XGBoost model. It stays in memory so every prediction request does not
+     need to reload it from disk (which would be slow).
+
+  b) LOAD THE SKLEARN MODEL
+     XGBoost was saved in two formats. The sklearn format gives access to
+     predict_proba() — a method that returns the actual probability (e.g., 0.73)
+     rather than just a 0/1 prediction. This is used to get the probability
+     percentage shown to the user.
+
+  c) LOAD FEATURE COLUMNS
+     The file model/feature_columns.txt is read. This gives the exact list
+     of 30 feature column names in the exact order the model expects them.
+     This list is stored as FEATURE_COLS in memory.
+
+After startup, the server is ready to accept prediction requests instantly
+without any file loading delay.
+
+PHASE 2: HANDLING A PREDICTION REQUEST
+---------------------------------------
+
+When a user clicks "Predict Churn" on the website, this sequence happens:
+
+  STEP 1 — Receive the raw customer data
+  The FastAPI /predict endpoint receives 19 fields of customer data as a
+  JSON object (e.g., {"Contract": "Month-to-month", "tenure": 5, ...}).
+  The data is automatically validated against the CustomerData schema
+  (defined in main.py), which checks that all required fields are present
+  and have the right types.
+
+  STEP 2 — Call predict() in inference.py
+  The raw 19-field dictionary is passed to the predict() function in
+  inference.py.
+
+  STEP 3 — Convert to DataFrame
+  Inside predict(), the dictionary is wrapped in a pandas DataFrame:
+    df = pd.DataFrame([input_dict])
+  This creates a one-row table in memory that the transformation code can work
+  with.
+
+  STEP 4 — Apply transformations (_serve_transform)
+  The _serve_transform() function applies the same feature engineering
+  transformations that were applied during training:
+
+    a) Numeric coercion: tenure, MonthlyCharges, TotalCharges are converted
+       to proper numbers (in case any arrived as strings from the frontend)
+
+    b) Binary encoding: fields in BINARY_MAP (gender, Partner, Dependents,
+       PhoneService, PaperlessBilling) are mapped to 0 or 1
+
+    c) One-hot encoding: all remaining text columns (Contract, InternetService,
+       MultipleLines, etc.) are one-hot encoded using pd.get_dummies with
+       drop_first=True
+
+    d) Boolean conversion: any True/False columns from the one-hot encoding
+       are converted to 1/0 integers (XGBoost needs integers, not booleans)
+
+    e) Feature alignment: df.reindex(columns=FEATURE_COLS, fill_value=0)
+       This is the critical step. It reorders the columns to exactly match the
+       training-time order AND fills in any columns that might be missing with
+       0 (this can happen if a one-hot category was not present in a single-row
+       input). The model receives exactly 30 columns in exactly the right order.
+
+  STEP 5 — Score with the model
+  sklearn_model.predict_proba(df_enc)[0][1] runs the XGBoost model on the
+  30-feature input and returns the churn probability. The [0][1] extracts
+  the probability of class 1 (churn) for the first (and only) row.
+
+  Example: proba = 0.734 means 73.4% probability of churning.
+
+  STEP 6 — Apply the threshold
+  result = 1 if proba >= 0.35 else 0
+  If the probability is at least 35%, the prediction is "churn" (1).
+  Otherwise it is "not churn" (0).
+
+  STEP 7 — Assign risk level
+  A risk level is assigned based on the probability:
+    probability >= 65% → "High"
+    probability >= 35% → "Medium"
+    probability <  35% → "Low"
+  This gives the UI the colour-coded badge (red, amber, green).
+
+  STEP 8 — Return the result
+  The function returns a dictionary:
+    {
+      "prediction":  "Likely to churn",
+      "probability": 73.4,
+      "risk_level":  "High"
+    }
+  FastAPI converts this to JSON and sends it back to the frontend.
+
+The entire process from receiving the request to sending the response takes
+less than 100 milliseconds on a production server — fast enough to support
+the What-If live prediction mode.
+
+
+================================================================================
+SECTION 11: WHAT IS REACT AND WHAT THE FRONTEND DOES
+================================================================================
+
+React is a JavaScript library created by Facebook/Meta for building interactive
+websites. It is "component-based" — you build small, reusable pieces (called
+components) and combine them into a full page.
+
+Think of it like LEGO. Each LEGO brick is a component: a button, a form field,
+a chart, a card. You snap them together to build a full structure (a page).
+If you want to change one brick, you change just that brick — the rest stays
+the same.
+
+The frontend is built with React + Vite. Vite is a build tool that takes your
+React code (written in .jsx files — a special format that mixes JavaScript and
+HTML) and compiles it into plain HTML, CSS, and JavaScript files that any
+browser can understand.
+
+The compiled output is in: frontend/dist/
+
+That dist/ folder is what gets deployed to Vercel. The browser downloads those
+files, runs the JavaScript, and the interactive single-page application appears.
+
+"Single-page application" (SPA) means the browser only ever loads ONE HTML page.
+When you click between the five pages (Predict, BulkPredict, History, Insights,
+Dataset), the URL changes but the browser does NOT make a new request to the
+server for a new HTML page. Instead, React intercepts the navigation and
+dynamically swaps out the content — making navigation feel instant.
+
+
+================================================================================
+SECTION 12: HOW THE FRONTEND AND BACKEND ARE CONNECTED
+================================================================================
+
+Defined in: frontend/src/api.js
+
+The frontend and backend are two completely separate programs running in
+completely different places (Vercel and Google Cloud Run). They communicate
+using HTTP — the same protocol your browser uses to load web pages.
+
+The frontend uses a JavaScript library called Axios to make HTTP requests.
+Axios is a helper library that makes it easy to send requests and handle
+the responses.
+
+The connection configuration lives entirely in frontend/src/api.js:
+
+  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const api = axios.create({ baseURL: BASE_URL });
+
+  export const predictSingle = (data) => api.post("/predict", data);
+  export const predictBatch = (file) => { ... api.post("/predict-batch", ...) };
+  export const getFeatureImportance = () => api.get("/feature-importance");
+  export const getModelStats = () => api.get("/model-stats");
+
+What this means:
+  - BASE_URL reads from an environment variable (VITE_API_URL). In production,
+    this is set to the Google Cloud Run URL. In development, it defaults to
+    http://localhost:8000 (your local machine).
+  - predictSingle sends a POST request with customer data to /predict
+  - predictBatch sends a POST request with a CSV file to /predict-batch
+  - getFeatureImportance and getModelStats send GET requests for dashboard data
+
+When predictSingle(data) is called in Predict.jsx, Axios constructs an
+HTTP POST request, sends the JSON data to the backend URL, and returns a
+"Promise" — a placeholder that will eventually contain either the response
+data or an error. React's async/await syntax handles the Promise:
+
+  const res = await predictSingle(data);
+  setResult(res.data);  -- updates the component's state with the response
+
+When state updates, React automatically re-renders the relevant parts of the
+page to show the new result. This is why the result panel appears without a
+page reload.
+
+THE BROWSER'S ROLE IN CORS
+---------------------------
+
+When the frontend (on Vercel) sends a request to the backend (on Cloud Run),
+the browser first sends a "preflight" request to ask Cloud Run: "Is it OK for
+a page from Vercel's address to make requests to you?" The backend's CORS
+middleware answers "yes" in the response headers. Only then does the browser
+send the actual request. This all happens automatically and invisibly to the
+user.
+
+
+================================================================================
+SECTION 13: WHAT EACH FRONTEND PAGE DOES
+================================================================================
+
+The five pages live in: frontend/src/pages/
+
+The routing (which URL shows which page) is configured in: frontend/src/App.jsx
+
+----
+
+PREDICT PAGE  (frontend/src/pages/Predict.jsx)
+-----------------------------------------------
+
+This is the main tool for a retention analyst. It shows a form divided into
+four sections: Demographics, Phone Services, Internet Services, and Account.
+Each field is a dropdown or number input.
+
+The page uses "controlled components" — React keeps track of the current value
+of every field in a state variable called `form`. When you change a dropdown,
+React updates `form` immediately and re-renders the field.
+
+When you click "Predict Churn," the runPredict() function:
+  1. Sets loading=true (shows "Predicting..." on the button)
+  2. Calls predictSingle(form) from api.js
+  3. Awaits the response
+  4. Sets result to the response data (this triggers React to re-render and show the result)
+  5. Calls saveToHistory() to save the prediction to localStorage
+  6. Sets loading=false
+
+The result panel shows a risk gauge (an SVG arc drawn with custom coordinates),
+the risk level, and the verdict. The gauge fills proportionally to the
+probability value.
+
+The What-If Mode toggle appears after the first prediction. When on, every
+call to handleChange() (which fires when any field is changed) also calls
+runPredict() with the updated form data. The result updates live.
+
+----
+
+BULK PREDICT PAGE  (frontend/src/pages/BulkPredict.jsx)
+---------------------------------------------------------
+
+This page has a "drop zone" — an area you can drag and drop a CSV file onto,
+or click to open a file browser. When a file is dropped or selected:
+
+  1. It checks the file extension is .csv
+  2. It calls predictBatch(file) from api.js
+  3. Axios sends the file as "multipart/form-data" (the standard way to upload
+     files over HTTP) to the /predict-batch endpoint
+  4. The backend loops through every row and returns predictions for all of them
+  5. The page displays summary cards (total / high / medium / low counts) and
+     a scrollable results table
+
+The "Download CSV" button uses the browser's Blob API to generate a CSV file
+from the results array and triggers a download — no server involved.
+
+----
+
+HISTORY PAGE  (frontend/src/pages/History.jsx)
+-----------------------------------------------
+
+This page reads from localStorage (a browser storage area that persists between
+page navigations but stays on your device — nothing is sent to any server).
+
+Every time a prediction is made on the Predict page, saveToHistory() writes the
+full input form plus the result to localStorage under the key "churn_history",
+keeping up to 200 entries.
+
+The History page reads this list, allows filtering by risk level, and renders
+a table. The "Export CSV" button converts the filtered records to CSV and
+triggers a download. "Clear" removes all entries from localStorage.
+
+----
+
+INSIGHTS PAGE  (frontend/src/pages/Insights.jsx)
+-------------------------------------------------
+
+This page fetches live data from the API when it loads. Using React's useEffect
+hook (which runs code once after the page renders), it calls both
+getFeatureImportance() and getModelStats() in parallel:
+
+  Promise.all([getFeatureImportance(), getModelStats()])
+    .then(([fi, ms]) => {
+      setFeatures(fi.data.feature_importance);
+      setStats(ms.data);
+    })
+
+The stats data (from model_metrics.json) populates four metric cards showing
+Recall, ROC-AUC, F1, and Precision.
+
+The feature importance data is used to render a horizontal bar chart using the
+Recharts library. Each bar represents one of the 30 model features, with its
+length proportional to how important that feature is in the model's predictions.
+A dropdown lets the user filter to the top 10, 15, 20, or all features.
+
+----
+
+DATASET PAGE  (frontend/src/pages/Dataset.jsx)
+-----------------------------------------------
+
+This page contains no API calls. All data is hardcoded from the EDA
+(Exploratory Data Analysis) performed during the project. It shows:
+  - Six summary statistic cards
+  - A pie chart (churn vs retained)
+  - Two bar charts (churn rate by contract type and internet service)
+  - A key findings bullet list
+
+The charts are rendered using the Recharts library, which provides React
+components like <BarChart>, <PieChart>, <XAxis>, <YAxis>, etc. that
+generate interactive SVG charts.
+
+
+================================================================================
+SECTION 14: WHAT IS GITHUB ACTIONS CI/CD — THE AUTOMATED BUILD PIPELINE
+================================================================================
+
+Defined in: .github/workflows/ci.yml
+
+CI/CD stands for "Continuous Integration / Continuous Deployment." It is the
+practice of automatically building, testing, and deploying code whenever a
+developer makes a change — without any manual steps.
+
+ANALOGY: THE AUTOMATED FACTORY
+--------------------------------
+
+Imagine an old car factory where after each shift, workers would manually
+carry finished parts to the next station, check if they fit, and then drive
+finished cars to the delivery lot. This is slow and error-prone.
+
+A modern automated factory uses conveyor belts and robots: as soon as a part
+is finished, it automatically moves to the next station. When a car rolls off
+the final assembly line, a robot automatically drives it to the delivery lot.
+No human has to remember to do any of this.
+
+GitHub Actions is the conveyor belt and robots for software. Every time a
+developer pushes code to GitHub (saves a new version), GitHub Actions
+automatically runs a defined sequence of steps.
+
+OUR WORKFLOW FILE (.github/workflows/ci.yml)
+---------------------------------------------
+
+This file defines one job called "build-and-push" that triggers on every push
+to the "main" branch. It runs on a virtual Ubuntu Linux machine provided by
+GitHub.
+
+The steps it performs:
+
+  STEP 1: CHECKOUT CODE
+  GitHub Actions downloads the latest version of the code from GitHub onto the
+  virtual machine. (Uses the standard "actions/checkout@v4" action.)
+
+  STEP 2: SET UP DOCKER BUILDX
+  Installs the modern Docker build engine on the virtual machine. This engine
+  supports building for multiple CPU architectures and is faster than the
+  standard builder.
+
+  STEP 3: LOG IN TO DOCKER HUB
+  Docker Hub is like GitHub but for Docker container images. Instead of
+  passwords hardcoded in the file (which would be a security problem), the
+  login uses "repository secrets" — encrypted values stored in the GitHub
+  repository settings. The workflow accesses them as:
+    ${{ secrets.DOCKERHUB_USERNAME }}
+    ${{ secrets.DOCKERHUB_TOKEN }}
+
+  STEP 4: BUILD AND PUSH
+  This step reads the dockerfile, builds the Docker image (following all the
+  steps in the recipe), and pushes the finished image to Docker Hub under the
+  name: usmangoat/telco-fastapi:latest
+
+  "latest" is a tag — like a version label. Every new build overwrites the
+  "latest" tag, so Google Cloud Run always pulls the most recent version.
+
+The entire pipeline takes about 3-5 minutes to run. After it completes, the
+new version of the backend is available on Docker Hub and Google Cloud Run
+can be told to pull the new image.
+
+
+================================================================================
+SECTION 15: WHAT IS GOOGLE CLOUD RUN AND VERCEL
+================================================================================
+
+GOOGLE CLOUD RUN (BACKEND HOSTING)
+------------------------------------
+
+Google Cloud Run is a "serverless container hosting" service. Here is what
+that means:
+
+  "Serverless" does NOT mean there is no server. It means YOU do not have to
+  manage, configure, or maintain any servers. Google handles all of that.
+  You just provide a Docker container and say "run this for me."
+
+  "Container hosting" means Cloud Run knows how to pull a Docker image from
+  Docker Hub and run it.
+
+When you deploy the backend to Cloud Run, you tell it:
+  - Which Docker image to use (usmangoat/telco-fastapi:latest)
+  - How much CPU and memory to give it
+  - Which port to listen on (8000)
+
+Cloud Run then:
+  - Gives you a public HTTPS URL (like https://telco-api-xxxx.run.app)
+  - Starts the container when requests arrive
+  - Shuts the container down when there is no traffic ("scales to zero")
+  - Spins up more instances automatically if many requests arrive at once
+
+The "scales to zero" feature means you only pay when the API is actually being
+used — there is no cost for idle time. This makes Cloud Run very cost-efficient
+for APIs with intermittent traffic.
+
+VERCEL (FRONTEND HOSTING)
+--------------------------
+
+Vercel is a hosting service specialized for frontend web applications. When you
+deploy the React app to Vercel:
+
+  1. Vercel detects that the frontend/ folder contains a Vite project
+  2. It runs npm run build to compile the React code into the dist/ folder
+  3. It deploys the compiled files (HTML, CSS, JS) to its global CDN
+     (Content Delivery Network — servers spread around the world)
+
+A CDN serves files from the server closest to the user. A user in Sydney gets
+the files from a server in Sydney, not from a server in the United States.
+This makes page loads very fast for users anywhere in the world.
+
+Vercel also automatically assigns a public URL (like https://your-app.vercel.app)
+and handles HTTPS (secure connections) for free.
+
+Just like Cloud Run, Vercel redeploys automatically when you push to GitHub
+(if configured to watch your repository). So both the frontend AND the backend
+are automatically rebuilt and redeployed when new code is merged.
+
+
+================================================================================
+SECTION 16: THE COMPLETE END-TO-END FLOW
+================================================================================
+
+Let us trace exactly what happens from the moment a user opens their browser
+to the moment they see a churn probability on their screen.
+
+SCENARIO: A retention analyst opens the website and predicts churn for a
+          specific customer with a month-to-month contract.
+
+STEP 1: USER OPENS THE WEBSITE
+  - The analyst types the website URL into their browser (the Vercel URL)
+  - The browser sends an HTTP request to Vercel's CDN servers
+  - Vercel responds with the index.html file and the compiled JavaScript bundle
+  - The browser downloads and executes the JavaScript
+  - React boots up and renders the application shell (navigation bar, layout)
+  - The browser URL shows the Predict page by default
+  - React renders all the form fields with their default values
+
+STEP 2: ANALYST FILLS IN THE CUSTOMER'S DETAILS
+  - The analyst changes the "Contract" dropdown from "Month-to-month" to
+    "Month-to-month" (already set) and enters the customer's tenure, charges, etc.
+  - Each change triggers the handleChange() function in Predict.jsx
+  - React updates the "form" state with each change
+  - React re-renders the affected form fields to show the new values
+  - (In normal mode, nothing else happens yet)
+
+STEP 3: ANALYST CLICKS "PREDICT CHURN"
+  - The onClick handler calls runPredict()
+  - runPredict() sets loading=true, which causes the button to show "Predicting..."
+  - runPredict() calls predictSingle(form) from api.js
+  - Axios constructs an HTTP POST request with the form data serialised as JSON
+
+STEP 4: THE HTTP REQUEST TRAVELS TO THE BACKEND
+  - The request leaves the analyst's browser and travels over the internet
+  - It arrives at Google Cloud Run's servers
+  - If the container is sleeping (scaled to zero), Cloud Run wakes it up
+    (this "cold start" might take 2-3 seconds the first time, but subsequent
+     requests are instant)
+  - The FastAPI server receives the request on port 8000
+
+STEP 5: FASTAPI VALIDATES AND ROUTES THE REQUEST
+  - FastAPI sees that the request is a POST to /predict
+  - It validates the request body against the CustomerData schema (19 fields,
+    correct types) — if any field is wrong, it returns a 422 error immediately
+  - The validated data is passed to the get_prediction() route handler function
+
+STEP 6: THE INFERENCE PIPELINE RUNS
+  - get_prediction() calls predict(data.dict()) from inference.py
+  - predict() converts the 19-field dictionary into a pandas DataFrame
+  - _serve_transform() applies:
+      → Numeric coercion for tenure, MonthlyCharges, TotalCharges
+      → Binary encoding for gender, Partner, Dependents, PhoneService,
+        PaperlessBilling
+      → One-hot encoding for Contract, InternetService, MultipleLines,
+        OnlineSecurity, OnlineBackup, DeviceProtection, TechSupport,
+        StreamingTV, StreamingMovies, PaymentMethod
+      → Boolean to integer conversion
+      → Feature alignment to FEATURE_COLS (30 columns in exact trained order)
+  - sklearn_model.predict_proba(df_enc)[0][1] runs the XGBoost model
+    → XGBoost scores the 30-feature input through all 301 decision trees
+    → Each tree contributes a weighted vote
+    → The votes are combined into a single probability number
+    → Result: e.g., 0.734
+  - 0.734 >= 0.35 (threshold), so result = 1 (churn predicted)
+  - probability = 73.4%, risk_level = "High"
+  - Returns {"prediction": "Likely to churn", "probability": 73.4, "risk_level": "High"}
+
+STEP 7: FASTAPI RETURNS THE RESPONSE
+  - FastAPI serialises the dictionary to JSON
+  - Sends it back over HTTPS as the HTTP response (status 200 OK)
+  - The response travels back over the internet to the analyst's browser
+
+STEP 8: AXIOS RECEIVES THE RESPONSE
+  - Axios receives the HTTP response in the browser
+  - It resolves the Promise from the predictSingle() call
+  - runPredict() receives the response: res.data = {prediction: ..., probability: 73.4, ...}
+
+STEP 9: REACT UPDATES THE UI
+  - setResult(res.data) updates the "result" state in Predict.jsx
+  - setLoading(false) resets the button back to "Predict Churn"
+  - React re-renders the result panel on the right side of the page
+  - The risk gauge SVG arc fills to 73.4% of its full arc, coloured red
+  - The badge shows "High Risk" in red
+  - The verdict shows "Likely to churn"
+
+STEP 10: HISTORY IS SAVED
+  - saveToHistory() is called with the form data and result
+  - The entry is added to the beginning of the list in localStorage
+  - The History page will show this entry the next time it is visited
+
+TOTAL TIME: Approximately 500ms to 1000ms from click to result.
+
+If the analyst then toggles What-If Mode on and changes the Contract dropdown
+to "Two year," steps 3 through 9 repeat automatically in under a second, and
+the risk gauge animates to show the updated probability — perhaps dropping
+from 73.4% to 25.1% as the model recognises that a two-year contract is a
+strong predictor of retention.
+
+
+================================================================================
+SECTION 17: HOW EACH FILE LINKS TO EVERY OTHER FILE — THE DEPENDENCY CHAIN
+================================================================================
+
+Here is a map of every file's dependencies, read as "X uses Y":
+
+TRAINING PIPELINE DEPENDENCIES
+--------------------------------
+
+  scripts/run_pipeline.py
+    USES → src/data/load_data.py          (to load the CSV)
+    USES → src/utils/validate_data.py     (to validate data quality)
+    USES → src/data/preprocess.py         (to clean the data)
+    USES → src/features/build_features.py (to engineer features)
+    USES → mlflow library                 (to log params, metrics, and artifacts)
+    USES → xgboost library                (the XGBClassifier model)
+    USES → sklearn library                (train_test_split, scoring metrics)
+    PRODUCES → model/model.pkl            (the trained model)
+    PRODUCES → model/feature_columns.txt  (the 30 feature names)
+    PRODUCES → model/preprocessing.pkl    (preprocessing metadata)
+    PRODUCES → model/model_metrics.json   (performance scores)
+    PRODUCES → mlruns/                    (MLflow experiment logs)
+
+  src/models/tune.py
+    USES → xgboost library
+    USES → optuna library
+    USES → sklearn (cross-validation, recall_score)
+    CALLED BY → scripts/run_pipeline.py (when --tune flag is set)
+
+  src/models/evaluate.py
+    USES → sklearn (classification_report, all scoring metrics)
+    CALLED BY → scripts/run_pipeline.py
+
+SERVING PIPELINE DEPENDENCIES
+-------------------------------
+
+  src/serving/inference.py
+    USES → model/model.pkl                (the trained model — loaded at startup)
+    USES → model/feature_columns.txt      (30 feature names — loaded at startup)
+    USES → mlflow library                 (for model loading)
+    USES → pandas library                 (for DataFrame operations)
+    DEFINES → predict() function          (the core prediction function)
+    DEFINES → _serve_transform() function (applies identical transformations as training)
+    DEFINES → BINARY_MAP                  (must match build_features.py exactly)
+    DEFINES → FEATURE_COLS               (loaded from feature_columns.txt)
+
+  src/app/main.py
+    USES → src/serving/inference.py       (imports predict, sklearn_model, FEATURE_COLS)
+    USES → fastapi library                (the web framework)
+    USES → pydantic library               (for request validation schemas)
+    USES → pandas library                 (for CSV processing in /predict-batch)
+    USES → model/model_metrics.json       (read by /model-stats endpoint)
+    EXPOSES → /predict, /predict-batch, /feature-importance, /model-stats
+
+  dockerfile
+    USES → requirements.txt               (installs all Python packages)
+    COPIES → model/                       (embeds trained model into container)
+    COPIES → src/                         (embeds all serving code)
+    RUNS → src/app/main.py via uvicorn    (starts the FastAPI server)
+
+FRONTEND DEPENDENCIES
+----------------------
+
+  frontend/src/api.js
+    CALLS → src/app/main.py endpoints     (via HTTP over the internet)
+    USES → axios library                  (for HTTP requests)
+    EXPORTS → predictSingle, predictBatch, getFeatureImportance, getModelStats
+
+  frontend/src/pages/Predict.jsx
+    USES → frontend/src/api.js            (imports predictSingle)
+    READS → localStorage                  (to save/load history)
+    USES → react library                  (useState for form state management)
+
+  frontend/src/pages/BulkPredict.jsx
+    USES → frontend/src/api.js            (imports predictBatch)
+    USES → react library                  (useState, useRef)
+
+  frontend/src/pages/History.jsx
+    USES → localStorage                   (reads churn_history set by Predict.jsx)
+    USES → react library                  (useState, useEffect)
+    (No API calls — entirely local)
+
+  frontend/src/pages/Insights.jsx
+    USES → frontend/src/api.js            (imports getFeatureImportance, getModelStats)
+    USES → recharts library               (BarChart, Cell, ResponsiveContainer)
+    USES → react library                  (useState, useEffect)
+
+  frontend/src/pages/Dataset.jsx
+    USES → recharts library               (BarChart, PieChart)
+    (No API calls — data is hardcoded from EDA)
+
+  frontend/src/App.jsx
+    USES → all five page components       (imports and routes to them)
+    USES → react-router-dom               (for URL-based navigation between pages)
+
+CI/CD DEPENDENCIES
+-------------------
+
+  .github/workflows/ci.yml
+    TRIGGERED BY → pushes to the main branch on GitHub
+    USES → dockerfile                     (builds the Docker image)
+    PUSHES TO → Docker Hub (usmangoat/telco-fastapi:latest)
+    FEEDS INTO → Google Cloud Run         (which pulls from Docker Hub)
+
+COMPLETE CHAIN (end to end):
+  Kaggle CSV
+    → data/ folder
+    → scripts/run_pipeline.py
+      → load_data.py → preprocess.py → validate_data.py → build_features.py
+      → XGBoost training
+      → MLflow logging → mlruns/
+      → model/ (pkl, feature_columns.txt, model_metrics.json)
+    → dockerfile packages model/ + src/
+    → .github/workflows/ci.yml builds Docker image on every push
+    → Docker Hub stores the image
+    → Google Cloud Run runs the image
+      → src/app/main.py (FastAPI) starts
+      → src/serving/inference.py loads model on startup
+    → frontend/src/api.js calls the Cloud Run URL
+    → frontend/src/pages/*.jsx display results to the user
+    → Vercel hosts the frontend
+
+================================================================================
+END OF DOCUMENT
+================================================================================

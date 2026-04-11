@@ -1,0 +1,13 @@
+{
+  "recall": 0.821,
+  "precision": 0.490,
+  "f1": 0.614,
+  "roc_auc": 0.837,
+  "threshold": 0.35,
+  "training_samples": 5634,
+  "test_samples": 1409,
+  "total_samples": 7043,
+  "churn_rate": 0.265,
+  "model": "XGBoost",
+  "note": "Recall-optimised — threshold lowered to 0.35 to maximise churn detection"
+}
