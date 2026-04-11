@@ -2,7 +2,7 @@
 
 ### Predicting which customers will leave — before they do.
 
-**Live demo:** [Frontend (Vercel)](https://your-vercel-url.vercel.app) · [Backend API](https://telco-fastapi.onrender.com) · [API Docs](https://telco-fastapi.onrender.com/docs)
+**Live demo:** [ChurnIQ App](https://customer-churn-senior-proj.vercel.app) · [Backend API](https://telco-fastapi.onrender.com) · [API Docs](https://telco-fastapi.onrender.com/docs)
 
 ---
 
