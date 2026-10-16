@@ -5,7 +5,27 @@ on:
     branches: [main]  # Only trigger on main branch pushes
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python (same version as the Docker image)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest
+
   build-and-push:
+    needs: test  # Only publish a new image if the tests pass
     runs-on: ubuntu-latest
 
     steps:

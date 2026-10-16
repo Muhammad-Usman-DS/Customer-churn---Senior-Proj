@@ -1,2 +1,4 @@
 data/
 notebooks/
+.venv/
+tests/

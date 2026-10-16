@@ -21,7 +21,7 @@ from fastapi import FastAPI, UploadFile, File  # FOR FRONTEND: UploadFile for bu
 from fastapi.middleware.cors import CORSMiddleware  # FOR FRONTEND: allow React app to call this API
 from pydantic import BaseModel
 
-from src.serving.inference import predict, sklearn_model, FEATURE_COLS  # FOR FRONTEND: expose model internals
+from src.serving.inference import predict, sklearn_model, FEATURE_COLS, MODEL_DIR  # FOR FRONTEND: expose model internals
 
 # Initialize FastAPI application
 app = FastAPI(
@@ -146,7 +146,7 @@ def get_model_stats():
     Reads from model_metrics.json stored alongside the model artifacts.
     """
     try:
-        metrics_path = os.path.join("/app/model", "model_metrics.json")
+        metrics_path = os.path.join(MODEL_DIR, "model_metrics.json")
         with open(metrics_path) as f:
             stats = json.load(f)
         return stats

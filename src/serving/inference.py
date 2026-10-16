@@ -14,7 +14,7 @@ Key Responsibilities:
 
 CRITICAL PATTERN: Training/Serving Consistency
 - Uses fixed BINARY_MAP for deterministic binary encoding
-- Applies same one-hot encoding with drop_first=True
+- Applies one-hot encoding aligned to the training columns (training uses drop_first=True)
 - Maintains exact feature column order from training
 - Handles missing/new categorical values gracefully
 
@@ -33,7 +33,8 @@ import mlflow.sklearn
 # IMPORTANT: This path is set during Docker container build
 # In development: uses local MLflow artifacts
 # In production: uses model copied to container at build time
-MODEL_DIR = "/app/model"
+# Override with the MODEL_DIR env var (e.g. tests point it at the repo's model/ folder)
+MODEL_DIR = os.environ.get("MODEL_DIR", "/app/model")
 
 # === CLASSIFICATION THRESHOLD ===
 # Lowered from default 0.5 to 0.35 to prioritize recall (catching churners)
@@ -135,9 +136,13 @@ def _serve_transform(df: pd.DataFrame) -> pd.DataFrame:
             )
 
     # === STEP 3: One-Hot Encoding for Remaining Categorical Features ===
+    # NOTE: drop_first must be False here. Inference sees one row at a time, so each column
+    # has a single category and drop_first=True would drop it, zeroing out every one-hot
+    # feature. Training's drop_first baseline is reproduced by the reindex in STEP 5, which
+    # discards the baseline-category columns that aren't in FEATURE_COLS.
     obj_cols = [c for c in df.select_dtypes(include=["object"]).columns]
     if obj_cols:
-        df = pd.get_dummies(df, columns=obj_cols, drop_first=True)
+        df = pd.get_dummies(df, columns=obj_cols, drop_first=False)
 
     # === STEP 4: Boolean to Integer Conversion ===
     bool_cols = df.select_dtypes(include=["bool"]).columns
