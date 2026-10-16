@@ -18,7 +18,7 @@ Customer churn — when a subscriber cancels their service — is one of the mos
 
 The traditional approach is reactive: a customer calls to cancel, and the retention team scrambles to offer a discount. By then it is often too late — the customer has already made up their mind. **The goal of this project is to be proactive**: predict which customers are likely to leave in the near future so that the business can reach out to them first, with the right offer, at the right time.
 
-> **Plain English:** We want to flag at-risk customers *before* they leave, not after.
+> **Motive:** We want to flag at-risk customers *before* they leave, not after.
 
 ---
 
@@ -306,7 +306,7 @@ Final model metrics at threshold 0.35, evaluated on the held-out test set (1,409
 | **Actually Churned** | 307 caught (True Positives) | 67 missed (False Negatives) |
 | **Actually Stayed** | 319 false alarms (False Positives) | 716 correctly retained (True Negatives) |
 
-> **Plain English:** The model catches 307 out of 374 actual churners. The retention team receives a list of 626 names — 307 real churners and 319 customers who would have stayed anyway. That is a 49% "hit rate" on the contact list. Without the model, the team would need to contact all 1,409 customers to find 374 churners — a 26.5% hit rate. **The model makes retention outreach approximately 1.85x more efficient.**
+> **Motive:** The model catches 307 out of 374 actual churners. The retention team receives a list of 626 names — 307 real churners and 319 customers who would have stayed anyway. That is a 49% "hit rate" on the contact list. Without the model, the team would need to contact all 1,409 customers to find 374 churners — a 26.5% hit rate. **The model makes retention outreach approximately 1.85x more efficient.**
 
 ---
 
@@ -355,7 +355,7 @@ The core tool for a retention analyst. The analyst enters a single customer's de
 
 - A **visual risk gauge** — an SVG arc that fills proportionally to the churn probability percentage (e.g., 73.2%)
 - A **risk level badge**: High (red), Medium (amber), or Low (green)
-- A plain-English **verdict**: "Likely to churn" or "Not likely to churn"
+- A **verdict**: "Likely to churn" or "Not likely to churn"
 
 Every successful prediction is automatically saved to the browser's local storage (up to 200 entries) and appears in the History page. Fields that depend on each other stay consistent: choosing "No" internet service locks the six internet add-ons to "No internet service" (and likewise for phone service and multiple lines), so the form can't describe a customer that doesn't exist.
 
