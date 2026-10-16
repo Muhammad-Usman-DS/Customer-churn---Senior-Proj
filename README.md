@@ -597,4 +597,4 @@ docker run -p 8000:8000 telco-churn-api
 
 ---
 
-*Built by Syed Muhammad Usman — Senior Project, 2025.*
+*Built by Syed Muhammad Usman — Senior Project, 2026.*
