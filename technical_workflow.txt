@@ -1098,7 +1098,7 @@ automatically runs a defined sequence of steps.
 OUR WORKFLOW FILE (.github/workflows/ci.yml)
 ---------------------------------------------
 
-This file defines two jobs that trigger on every push to the "main" branch.
+This file defines three jobs that trigger on every push to the "main" branch.
 They run on virtual Ubuntu Linux machines provided by GitHub.
 
 JOB 1: "test"
@@ -1134,10 +1134,17 @@ JOB 2: "build-and-push" (only runs if "test" passed)
   "latest" is a tag — like a version label. Every new build overwrites the
   "latest" tag, so Render always pulls the most recent version.
 
-The entire pipeline takes about 4-5 minutes to run. After it completes, the
-new version of the backend is available on Docker Hub. It goes live when a
-deploy is triggered in the Render dashboard (Manual Deploy -> Deploy latest
-reference); Render keeps the previous version running until then.
+JOB 3: "deploy" (only runs if the image was published)
+  Calls Render's deploy hook (a secret URL stored in the repository secrets
+  as RENDER_DEPLOY_HOOK_URL) and tells Render the exact image digest that was
+  just built, so production always runs the image that passed the tests.
+  It then runs scripts/smoke_test.py against the live API: it waits until
+  /version reports the new commit, then checks that the API is healthy, that
+  contract type changes the prediction, that invalid input is rejected, and
+  that the Insights endpoints respond. If anything fails, the run turns red.
+
+The entire pipeline usually takes 6-10 minutes, most of it waiting for Render
+to start the new container. No manual steps are needed.
 
 
 ================================================================================
@@ -1157,9 +1164,8 @@ Our Render web service is configured with:
 Render then:
   - Gives the service a public HTTPS URL: https://telco-fastapi.onrender.com
   - Runs the container and restarts it if it crashes
-  - Deploys a new image when a deploy is triggered from the dashboard
-    (Manual Deploy -> Deploy latest reference), and can roll back to any
-    previous deploy with one click
+  - Deploys a new image when CI calls its deploy hook, and can roll back
+    to any previous deploy with one click in the dashboard
 
 We use Render's free tier. The trade-off is that the service sleeps after
 about 15 minutes without traffic; the first request after that waits roughly

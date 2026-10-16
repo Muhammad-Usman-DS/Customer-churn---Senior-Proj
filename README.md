@@ -480,7 +480,7 @@ This feature elevates the tool from a simple prediction endpoint to a genuine **
 | **Container registry** | Docker Hub | Stores and serves built Docker images |
 | **Backend hosting** | Render | Container hosting for the FastAPI backend |
 | **Frontend hosting** | Vercel | Global CDN hosting for the React app |
-| **CI/CD** | GitHub Actions | Runs the tests, then builds and pushes the Docker image on every push to `main` |
+| **CI/CD** | GitHub Actions | On every push to `main`: tests → Docker build and push → Render deploy → production smoke tests |
 
 ---
 
@@ -504,7 +504,7 @@ The `mlruns/` directory is **gitignored** — it is large and machine-specific. 
 
 ### GitHub Actions (`/.github/workflows/ci.yml`)
 
-Every push to the `main` branch automatically triggers two jobs:
+Every push to the `main` branch automatically triggers three jobs:
 
 1. **Test** — installs `requirements.txt` on Python 3.11 (the same version as the Docker image) and runs the full pytest suite. If any test fails, the pipeline stops here and no image is published.
 2. **Build and push** (only if the tests pass):
@@ -512,14 +512,18 @@ Every push to the `main` branch automatically triggers two jobs:
    - **Docker Hub login** — authenticates using encrypted repository secrets (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`).
    - **Build and push** — builds the Docker image from `dockerfile` and pushes it to `usmangoat/telco-fastapi:latest` on Docker Hub.
 
-Every change is tested, then automatically packaged and published. A change that breaks the model or the API never reaches Docker Hub.
+3. **Deploy** (only if the image was published):
+   - Calls Render's deploy hook (stored as the `RENDER_DEPLOY_HOOK_URL` secret) with the **exact image digest** just built, so production always runs the image that passed the tests.
+   - Runs `scripts/smoke_test.py` against production: waits until `/version` reports the new commit, then checks the health endpoint, that contract type changes the prediction, that invalid input is rejected with HTTP 422, and that model stats and feature importance respond. A failure turns the CI run red.
+
+Every change is tested, packaged, deployed and checked in production automatically. A change that breaks the model or the API never reaches Docker Hub, let alone users.
 
 ### Render (Backend)
 
 Render is a cloud platform that runs the Docker container from Docker Hub. Key properties:
 
 - Pulls `usmangoat/telco-fastapi:latest` from Docker Hub and runs it as a web service
-- A new image goes live when a deploy is triggered from the Render dashboard (**Manual Deploy → Deploy latest reference**); a previous deploy can be restored with **Rollback**
+- New versions are deployed automatically by CI through Render's deploy hook; a previous deploy can be restored from the Render dashboard with **Rollback**
 - Exposes the FastAPI application on a public HTTPS URL: `https://telco-fastapi.onrender.com`
 - Free tier sleeps after 15 minutes of inactivity — first request after sleep takes ~30 seconds to wake up
 - The frontend's environment variable `VITE_API_URL` points to this URL
