@@ -94,6 +94,108 @@ BINARY_MAP = {
 # Numeric columns that need type coercion
 NUMERIC_COLS = ["tenure", "MonthlyCharges", "TotalCharges"]
 
+# === INPUT VALIDATION ===
+# Every category seen in training, spelled exactly as in the training data.
+# _serve_transform silently maps an unknown or misspelled value to the baseline category
+# (e.g. "Two Year" -> Month-to-month), so inputs are normalised and checked against this first.
+CATEGORIES = {
+    "gender": ["Female", "Male"],
+    "Partner": ["No", "Yes"],
+    "Dependents": ["No", "Yes"],
+    "PhoneService": ["No", "Yes"],
+    "MultipleLines": ["No", "Yes", "No phone service"],
+    "InternetService": ["DSL", "Fiber optic", "No"],
+    "OnlineSecurity": ["No", "Yes", "No internet service"],
+    "OnlineBackup": ["No", "Yes", "No internet service"],
+    "DeviceProtection": ["No", "Yes", "No internet service"],
+    "TechSupport": ["No", "Yes", "No internet service"],
+    "StreamingTV": ["No", "Yes", "No internet service"],
+    "StreamingMovies": ["No", "Yes", "No internet service"],
+    "Contract": ["Month-to-month", "One year", "Two year"],
+    "PaperlessBilling": ["No", "Yes"],
+    "PaymentMethod": [
+        "Bank transfer (automatic)",
+        "Credit card (automatic)",
+        "Electronic check",
+        "Mailed check",
+    ],
+}
+
+REQUIRED_FIELDS = list(CATEGORIES) + ["SeniorCitizen"] + NUMERIC_COLS
+
+
+class InvalidInputError(ValueError):
+    """Raised when a customer record can't be scored reliably; `errors` lists every problem."""
+
+    def __init__(self, errors: list):
+        super().__init__("; ".join(errors))
+        self.errors = errors
+
+
+def _is_missing(v) -> bool:
+    return v is None or (isinstance(v, float) and pd.isna(v)) or (isinstance(v, str) and not v.strip())
+
+
+def _canonical(v) -> str:
+    """Case- and whitespace-insensitive key: ' Two  YEAR ' -> 'two year'."""
+    return " ".join(str(v).split()).lower()
+
+
+_LOOKUP = {col: {_canonical(v): v for v in values} for col, values in CATEGORIES.items()}
+
+
+def normalize_input(input_dict: dict) -> dict:
+    """
+    Clean a raw customer record and reject anything the model would silently misread.
+
+    - Trims whitespace and ignores capitalisation for categories ("two year " -> "Two year")
+    - Accepts SeniorCitizen as 0/1 or Yes/No
+    - Treats a blank TotalCharges as 0, matching training (new customers have no charges yet)
+    - Ignores extra fields such as customerID or Churn
+
+    Raises InvalidInputError listing every missing field and invalid value.
+    """
+    errors = []
+    clean = {}
+
+    for col, lookup in _LOOKUP.items():
+        v = input_dict.get(col)
+        if _is_missing(v):
+            errors.append(f"{col} is missing")
+        elif _canonical(v) not in lookup:
+            errors.append(f"{col} '{v}' is not valid (expected one of: {', '.join(CATEGORIES[col])})")
+        else:
+            clean[col] = lookup[_canonical(v)]
+
+    senior = input_dict.get("SeniorCitizen")
+    senior_map = {"0": 0, "1": 1, "0.0": 0, "1.0": 1, "no": 0, "yes": 1}
+    if _is_missing(senior):
+        errors.append("SeniorCitizen is missing")
+    elif _canonical(senior) not in senior_map:
+        errors.append(f"SeniorCitizen '{senior}' is not valid (expected 0 or 1)")
+    else:
+        clean["SeniorCitizen"] = senior_map[_canonical(senior)]
+
+    for col in NUMERIC_COLS:
+        v = input_dict.get(col)
+        if _is_missing(v):
+            if col == "TotalCharges":
+                clean[col] = 0.0
+            else:
+                errors.append(f"{col} is missing")
+            continue
+        num = pd.to_numeric(str(v).strip(), errors="coerce")
+        if pd.isna(num):
+            errors.append(f"{col} '{v}' is not a number")
+        elif num < 0:
+            errors.append(f"{col} cannot be negative (got {v})")
+        else:
+            clean[col] = float(num)
+
+    if errors:
+        raise InvalidInputError(errors)
+    return clean
+
 def _serve_transform(df: pd.DataFrame) -> pd.DataFrame:
     """
     Apply identical feature transformations as used during model training.
@@ -167,8 +269,11 @@ def predict(input_dict: dict) -> dict:
         - prediction: "Likely to churn" or "Not likely to churn"
         - probability: churn probability as a percentage (0-100)
         - risk_level: "High", "Medium", or "Low"
+
+    Raises:
+        InvalidInputError: if a field is missing or has a value the model wasn't trained on
     """
-    df = pd.DataFrame([input_dict])
+    df = pd.DataFrame([normalize_input(input_dict)])
     df_enc = _serve_transform(df)
 
     # FOR FRONTEND: Use sklearn model for probability + apply custom threshold

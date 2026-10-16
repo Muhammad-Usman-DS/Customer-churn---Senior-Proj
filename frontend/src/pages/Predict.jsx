@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { predictSingle } from "../api";
+import { predictSingle, errorMessage } from "../api";
 
 const DEFAULTS = {
   gender: "Male",
@@ -134,8 +134,8 @@ export default function Predict() {
       const res = await predictSingle(data);
       setResult(res.data);
       saveToHistory(data, res.data);
-    } catch {
-      setError("Could not reach the API. Make sure the backend is running.");
+    } catch (err) {
+      setError(errorMessage(err, "Prediction failed. Please try again."));
     } finally {
       setLoading(false);
     }

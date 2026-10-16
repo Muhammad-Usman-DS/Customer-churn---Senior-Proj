@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { predictBatch } from "../api";
+import { predictBatch, errorMessage } from "../api";
 
 const RISK_COLORS = {
   High: "bg-red-100 text-red-700",
@@ -37,8 +37,8 @@ export default function BulkPredict() {
     try {
       const res = await predictBatch(file);
       setResults(res.data);
-    } catch {
-      setError("Upload failed. Make sure the backend is running and the CSV has the correct columns.");
+    } catch (err) {
+      setError(errorMessage(err, "Upload failed. Make sure the CSV has the same 19 columns as the predict form."));
     } finally {
       setLoading(false);
     }
@@ -50,6 +50,7 @@ export default function BulkPredict() {
         high: results.predictions.filter((r) => r.risk_level === "High").length,
         medium: results.predictions.filter((r) => r.risk_level === "Medium").length,
         low: results.predictions.filter((r) => r.risk_level === "Low").length,
+        failed: results.predictions.filter((r) => r.error),
       }
     : null;
 
@@ -115,6 +116,19 @@ export default function BulkPredict() {
             ))}
           </div>
 
+          {summary.failed.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+              <p className="font-medium">
+                {summary.failed.length} of {summary.total} rows couldn't be scored. Fix these values and upload again:
+              </p>
+              <ul className="mt-2 space-y-1 list-disc list-inside max-h-40 overflow-y-auto">
+                {summary.failed.map((r, i) => (
+                  <li key={i}>{r.error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Results table */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
@@ -147,12 +161,18 @@ export default function BulkPredict() {
                       <td className="px-4 py-2.5 text-slate-700">{r.InternetService}</td>
                       <td className="px-4 py-2.5 text-slate-700">{r.tenure} mo</td>
                       <td className="px-4 py-2.5 text-slate-700">${r.MonthlyCharges}</td>
-                      <td className="px-4 py-2.5 font-semibold text-slate-800">{r.probability}%</td>
-                      <td className="px-4 py-2.5">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${RISK_COLORS[r.risk_level]}`}>
-                          {r.risk_level}
-                        </span>
-                      </td>
+                      {r.error ? (
+                        <td colSpan={2} className="px-4 py-2.5 text-xs text-amber-700">Not scored — see above</td>
+                      ) : (
+                        <>
+                          <td className="px-4 py-2.5 font-semibold text-slate-800">{r.probability}%</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${RISK_COLORS[r.risk_level]}`}>
+                              {r.risk_level}
+                            </span>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { getFeatureImportance, getModelStats } from "../api";
+import { getFeatureImportance, getModelStats, errorMessage } from "../api";
 
 function MetricCard({ label, value, description, color }) {
   return (
@@ -19,6 +19,7 @@ export default function Insights() {
   const [stats, setStats] = useState(null);
   const [topN, setTopN] = useState(15);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     Promise.all([getFeatureImportance(), getModelStats()])
@@ -26,7 +27,7 @@ export default function Insights() {
         setFeatures(fi.data.feature_importance || []);
         setStats(ms.data);
       })
-      .catch(() => {})
+      .catch((err) => setError(errorMessage(err, "Could not load model insights.")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -44,6 +45,8 @@ export default function Insights() {
 
       {loading ? (
         <div className="text-center text-slate-400 py-20 text-sm animate-pulse">Loading...</div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-600">{error}</div>
       ) : (
         <div className="space-y-6">
           {/* Metric cards */}

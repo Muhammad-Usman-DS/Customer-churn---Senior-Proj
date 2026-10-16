@@ -41,6 +41,75 @@ def test_contract_type_changes_prediction(raw_customers):
     assert probs["Month-to-month"] > probs["One year"] > probs["Two year"], probs
 
 
-def test_unknown_category_does_not_crash(raw_customers):
-    result = inference.predict(dict(raw_customers[0], PaymentMethod="Crypto"))
-    assert 0 <= result["probability"] <= 100
+# --- Input validation: messy values must be normalised or rejected, never silently misread ---
+
+@pytest.mark.parametrize(
+    "field, messy, clean",
+    [
+        ("Contract", "Two Year", "Two year"),
+        ("Contract", "  two year ", "Two year"),
+        ("InternetService", "fiber optic", "Fiber optic"),
+        ("InternetService", "Fiber  Optic", "Fiber optic"),
+        ("Partner", "yes", "Yes"),
+        ("OnlineSecurity", "no internet service", "No internet service"),
+        ("PaymentMethod", "electronic check", "Electronic check"),
+        ("SeniorCitizen", "Yes", 1),
+        ("SeniorCitizen", "0", 0),
+    ],
+)
+def test_messy_values_give_same_prediction_as_clean(raw_customers, field, messy, clean):
+    customer = raw_customers[0]
+    assert inference.predict(dict(customer, **{field: messy})) == inference.predict(dict(customer, **{field: clean}))
+
+
+@pytest.mark.parametrize(
+    "change, expected_error",
+    [
+        ({"Contract": "Two Yr"}, "Contract 'Two Yr' is not valid"),
+        ({"PaymentMethod": "Crypto"}, "PaymentMethod 'Crypto' is not valid"),
+        ({"Contract": None}, "Contract is missing"),
+        ({"Contract": "   "}, "Contract is missing"),
+        ({"tenure": "abc"}, "tenure 'abc' is not a number"),
+        ({"MonthlyCharges": -5}, "MonthlyCharges cannot be negative"),
+        ({"SeniorCitizen": 2}, "SeniorCitizen '2' is not valid"),
+    ],
+)
+def test_invalid_values_are_rejected(raw_customers, change, expected_error):
+    with pytest.raises(inference.InvalidInputError) as exc:
+        inference.predict(dict(raw_customers[0], **change))
+    assert any(expected_error in e for e in exc.value.errors), exc.value.errors
+
+
+def test_missing_field_is_rejected(raw_customers):
+    customer = {k: v for k, v in raw_customers[0].items() if k != "Contract"}
+    with pytest.raises(inference.InvalidInputError, match="Contract is missing"):
+        inference.predict(customer)
+
+
+def test_all_problems_reported_at_once(raw_customers):
+    with pytest.raises(inference.InvalidInputError) as exc:
+        inference.predict(dict(raw_customers[0], Contract="x", gender="y", tenure="z"))
+    assert len(exc.value.errors) == 3
+
+
+def test_blank_total_charges_treated_as_zero_like_training(raw_customers):
+    # New customers have a blank TotalCharges in the raw data; preprocess_data fills it with 0
+    customer = raw_customers[0]
+    assert inference.predict(dict(customer, TotalCharges=" ")) == inference.predict(dict(customer, TotalCharges=0))
+
+
+def test_extra_fields_are_ignored(raw_customers):
+    customer = raw_customers[0]
+    assert inference.predict(dict(customer, customerID="1234-ABCD", Churn="Yes")) == inference.predict(customer)
+
+
+def test_categories_match_trained_features(feature_cols):
+    # Every non-baseline category must have a model column, or it would be silently dropped
+    for col, values in inference.CATEGORIES.items():
+        if col in inference.BINARY_MAP:
+            assert set(values) == set(inference.BINARY_MAP[col]), col
+        else:
+            baseline, *others = sorted(values)
+            for v in others:
+                assert f"{col}_{v}" in feature_cols, f"{col}_{v}"
+            assert f"{col}_{baseline}" not in feature_cols, f"{col}_{baseline} should be the dropped baseline"
