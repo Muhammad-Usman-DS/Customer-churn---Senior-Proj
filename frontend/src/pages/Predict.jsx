@@ -23,6 +23,41 @@ const DEFAULTS = {
   TotalCharges: 350.75,
 };
 
+// Fields that only make sense with internet / phone service. The API rejects combinations
+// the training data never contains (e.g. no internet but "Yes" to Online Security).
+const INTERNET_ADDONS = [
+  "OnlineSecurity", "OnlineBackup", "DeviceProtection",
+  "TechSupport", "StreamingTV", "StreamingMovies",
+];
+
+function applyDependencies(form, key, value) {
+  const updated = { ...form, [key]: value };
+  if (key === "InternetService") {
+    for (const f of INTERNET_ADDONS) {
+      if (value === "No") updated[f] = "No internet service";
+      else if (updated[f] === "No internet service") updated[f] = "No";
+    }
+  }
+  if (key === "PhoneService") {
+    if (value === "No") updated.MultipleLines = "No phone service";
+    else if (updated.MultipleLines === "No phone service") updated.MultipleLines = "No";
+  }
+  return updated;
+}
+
+// Locked fields show only their forced value; otherwise the "No ... service" option is hidden
+function fieldState(form, key) {
+  if (INTERNET_ADDONS.includes(key)) {
+    const locked = form.InternetService === "No";
+    return { locked, hide: locked ? null : "No internet service" };
+  }
+  if (key === "MultipleLines") {
+    const locked = form.PhoneService === "No";
+    return { locked, hide: locked ? null : "No phone service" };
+  }
+  return { locked: false, hide: null };
+}
+
 const FIELDS = [
   {
     section: "Demographics",
@@ -119,7 +154,7 @@ export default function Predict() {
   const [whatIfMode, setWhatIfMode] = useState(false);
 
   function handleChange(key, value) {
-    const updated = { ...form, [key]: value };
+    const updated = applyDependencies(form, key, value);
     setForm(updated);
     // In what-if mode, re-run prediction on every change
     if (whatIfMode && result) {
@@ -159,7 +194,9 @@ export default function Predict() {
                 {section}
               </h2>
               <div className="grid grid-cols-2 gap-4">
-                {fields.map((f) => (
+                {fields.map((f) => {
+                  const { locked, hide } = fieldState(form, f.key);
+                  return (
                   <div key={f.key}>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       {f.label}
@@ -174,9 +211,11 @@ export default function Predict() {
                               : e.target.value;
                           handleChange(f.key, val);
                         }}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
+                        disabled={locked}
+                        title={locked ? "Set automatically from the service above" : undefined}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:bg-gray-50 disabled:text-slate-400"
                       >
-                        {f.options.map((o) =>
+                        {f.options.filter((o) => o !== hide && (!locked || o === form[f.key])).map((o) =>
                           typeof o === "object" ? (
                             <option key={o.value} value={o.value}>{o.label}</option>
                           ) : (
@@ -196,7 +235,8 @@ export default function Predict() {
                       />
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}

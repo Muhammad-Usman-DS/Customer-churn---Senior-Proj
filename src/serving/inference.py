@@ -123,6 +123,11 @@ CATEGORIES = {
 
 REQUIRED_FIELDS = list(CATEGORIES) + ["SeniorCitizen"] + NUMERIC_COLS
 
+INTERNET_ADDONS = [
+    "OnlineSecurity", "OnlineBackup", "DeviceProtection",
+    "TechSupport", "StreamingTV", "StreamingMovies",
+]
+
 
 class InvalidInputError(ValueError):
     """Raised when a customer record can't be scored reliably; `errors` lists every problem."""
@@ -166,6 +171,23 @@ def normalize_input(input_dict: dict) -> dict:
             errors.append(f"{col} '{v}' is not valid (expected one of: {', '.join(CATEGORIES[col])})")
         else:
             clean[col] = lookup[_canonical(v)]
+
+    # Dependent fields: the training data never breaks these (0 of 7,043 customers), so a
+    # record that does describes a customer the model has never seen.
+    if clean.get("InternetService"):
+        has_internet = clean["InternetService"] != "No"
+        for col in INTERNET_ADDONS:
+            if col not in clean:
+                continue
+            if not has_internet and clean[col] != "No internet service":
+                errors.append(f"{col} must be 'No internet service' when InternetService is 'No'")
+            elif has_internet and clean[col] == "No internet service":
+                errors.append(f"{col} can't be 'No internet service' when InternetService is '{clean['InternetService']}'")
+    if clean.get("PhoneService") and clean.get("MultipleLines"):
+        if clean["PhoneService"] == "No" and clean["MultipleLines"] != "No phone service":
+            errors.append("MultipleLines must be 'No phone service' when PhoneService is 'No'")
+        elif clean["PhoneService"] == "Yes" and clean["MultipleLines"] == "No phone service":
+            errors.append("MultipleLines can't be 'No phone service' when PhoneService is 'Yes'")
 
     senior = input_dict.get("SeniorCitizen")
     senior_map = {"0": 0, "1": 1, "0.0": 0, "1.0": 1, "no": 0, "yes": 1}
