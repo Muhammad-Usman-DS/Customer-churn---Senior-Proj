@@ -6,12 +6,6 @@ from src.data.preprocess import preprocess_data
 from src.utils.validate_data import validate_telco_data
 from tests.conftest import TARGET
 
-# validate_data.py uses ge.dataset.PandasDataset, which was removed in Great Expectations 1.x
-# (requirements.txt pins 1.5.8). strict=True makes these fail loudly once validation is ported.
-ge_broken = pytest.mark.xfail(
-    raises=AttributeError, strict=True, reason="validate_data.py uses the pre-1.0 Great Expectations API"
-)
-
 
 def test_raw_data_shape(raw_df):
     assert raw_df.shape == (7043, 21)
@@ -22,18 +16,42 @@ def test_load_data_missing_file_raises():
         load_data("does/not/exist.csv")
 
 
-@ge_broken
 def test_raw_data_passes_validation(raw_df):
     is_valid, failed = validate_telco_data(raw_df.copy())
     assert is_valid, f"Validation failed: {failed}"
 
 
-@ge_broken
-def test_validation_rejects_bad_data(raw_df):
+def _negative_tenure(df):
+    df.loc[:9, "tenure"] = -5
+
+
+def _unknown_contract(df):
+    df.loc[df["Contract"] == "Two year", "Contract"] = "Two Yr"
+
+
+def _duplicate_id(df):
+    df.loc[5, "customerID"] = df.loc[6, "customerID"]
+
+
+def _missing_gender(df):
+    df.loc[0, "gender"] = None
+
+
+@pytest.mark.parametrize(
+    "corrupt, expected_failure",
+    [
+        (_negative_tenure, "expect_column_values_to_be_between(tenure)"),
+        (_unknown_contract, "expect_column_values_to_be_in_set(Contract)"),
+        (_duplicate_id, "expect_column_values_to_be_unique(customerID)"),
+        (_missing_gender, "expect_column_values_to_not_be_null(gender)"),
+    ],
+)
+def test_validation_rejects_bad_data(raw_df, corrupt, expected_failure):
     bad = raw_df.copy()
-    bad.loc[:9, "tenure"] = -5
-    is_valid, _ = validate_telco_data(bad)
+    corrupt(bad)
+    is_valid, failed = validate_telco_data(bad)
     assert not is_valid
+    assert expected_failure in failed
 
 
 def test_preprocess_cleans_data(raw_df):
