@@ -1,4 +1,4 @@
-<!doctype html><html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
 <title>ChurnIQ System Map</title>
 <meta name="description" content="How the ChurnIQ churn model is trained, served, tested and deployed, file by file.">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -58,25 +58,17 @@ body {
 .wrap { max-width: 1480px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
 
 header { display: flex; flex-direction: column; gap: 12px; }
-.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(30px, 4.4vw, 46px); line-height: 1.05; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
-.lede { margin: 0; max-width: 74ch; color: var(--muted); font-size: 16.5px; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(28px, 3.4vw, 38px); line-height: 1.05; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+.lede { margin: 0; max-width: 74ch; color: var(--muted); font-size: 16px; }
+.brand { display: flex; align-items: center; gap: 14px; }
+.logo { width: 46px; height: 46px; flex: none; background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; }
 
-.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 0; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); }
-.glance > div { padding: 14px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0; border-left: 1px solid var(--rule); }
-.glance > div:first-child { border-left: 0; }
-@media (max-width: 900px) { .glance > div { border-left: 0; border-top: 1px solid var(--rule); } .glance > div:first-child { border-top: 0; } }
-.glance h4 { margin: 0; font: 500 11.5px var(--f-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-.glance ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 14.5px; }
-.glance b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.chip { font: 400 12.5px var(--f-mono); padding: 2px 8px; border: 1px solid var(--rule); border-radius: 999px; color: var(--ink); }
-
-.paths { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
-.pathbtn { font: 500 13.5px/1.2 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 999px; padding: 7px 13px; cursor: pointer; }
-.pathbtn b { font-weight: 600; }
-.pathbtn span { color: var(--muted); }
-.pathbtn:hover { border-color: var(--accent); }
+/* Key numbers: 1px gaps over the rule colour draw the dividers, so wrapping never leaves stray borders */
+.stats { display: flex; flex-wrap: wrap; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+.stats > div { flex: 1 1 170px; background: var(--surface); padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stats .k { font: 500 11.5px var(--f-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.stats b { font: 600 26px/1.15 var(--f-display); font-variant-numeric: tabular-nums; }
+.stats .d { font-size: 13.5px; color: var(--muted); }
 
 #app { display: flex; flex-direction: column; gap: 14px; }
 .bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; border-bottom: 1px solid var(--rule); }
@@ -94,7 +86,7 @@ nav.tabs { display: flex; flex-wrap: wrap; gap: 0; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
-.tab:focus-visible, .btn:focus-visible, .link:focus-visible, .pathbtn:focus-visible, .codebtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 5px; }
+.tab:focus-visible, .btn:focus-visible, .link:focus-visible, .codebtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 5px; }
 
 .grid { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 18px; align-items: start; }
 @media (max-width: 1180px) { .grid { grid-template-columns: minmax(0, 1fr); } }
@@ -227,7 +219,6 @@ ol.flow span { color: var(--muted); }
 /* glossary */
 .gloss { display: flex; flex-direction: column; gap: 14px; }
 .gloss h2 { font-family: var(--f-display); font-weight: 600; font-size: 26px; margin: 0; }
-.gloss > p { margin: 0; color: var(--muted); max-width: 72ch; }
 .terms { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
 .term { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .term b { font-weight: 600; font-size: 15.5px; }
@@ -238,41 +229,27 @@ ol.flow span { color: var(--muted); }
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">Telco customer churn · senior portfolio project</div>
-    <h1>ChurnIQ System Map</h1>
-    <p class="lede">ChurnIQ predicts which telecom customers are likely to cancel, so a retention team can reach them first. This map explains the whole project: how the model learns, how one prediction works, how code reaches the live site, and what every file does.</p>
-
-    <div class="glance" aria-label="Project at a glance">
-      <div>
-        <h4>Results</h4>
-        <ul>
-          <li>Catches <b>82.1%</b> of customers who leave (recall)</li>
-          <li>Ranks a leaver above a stayer <b>83.7%</b> of the time (ROC-AUC)</li>
-          <li>Trained on <b>7,043</b> real customers, tested on <b>1,409</b> unseen</li>
-        </ul>
-      </div>
-      <div>
-        <h4>Engineering</h4>
-        <ul>
-          <li><b>59</b> automated tests, run on every push</li>
-          <li><b>62</b> data-quality checks before training</li>
-          <li>Push → test → deploy → <b>5</b> checks on the live site</li>
-          <li>Input validation with clear error messages</li>
-        </ul>
-      </div>
-      <div>
-        <h4>Built with</h4>
-        <div class="chips">
-          <span class="chip">Python</span><span class="chip">pandas</span><span class="chip">XGBoost</span><span class="chip">Great Expectations</span><span class="chip">MLflow</span><span class="chip">FastAPI</span><span class="chip">React</span><span class="chip">Docker</span><span class="chip">GitHub Actions</span><span class="chip">Render</span><span class="chip">Vercel</span><span class="chip">pytest</span>
-        </div>
-      </div>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 44 44" aria-hidden="true">
+        <g fill="none" stroke="var(--edge)" stroke-width="1.6" stroke-linecap="round">
+          <path d="M11 13 L22 22 L33 13"/><path d="M22 22 L22 33"/><path d="M22 22 L33 31"/>
+        </g>
+        <circle cx="11" cy="13" r="3.8" fill="var(--z-data)"/>
+        <circle cx="33" cy="13" r="3.8" fill="var(--z-ci)"/>
+        <circle cx="22" cy="33" r="3.8" fill="var(--z-api)"/>
+        <circle cx="33" cy="31" r="3.8" fill="var(--z-web)"/>
+        <circle cx="22" cy="22" r="5.2" fill="var(--z-model)"/>
+      </svg>
+      <h1>ChurnIQ System Map</h1>
     </div>
+    <p class="lede">How the model is trained, how one prediction is made, how code reaches the live site, and what every file does. Click any box or arrow for details.</p>
 
-    <div class="paths" aria-label="Where to start">
-      <span>Where to start:</span>
-      <button class="pathbtn" data-path="start"><b>New to ML</b> <span>→ 1 · Start here</span></button>
-      <button class="pathbtn" data-path="overview"><b>Quick overview</b> <span>→ 2 · Where it runs, then 6 · Release</span></button>
-      <button class="pathbtn" data-path="files"><b>Developer</b> <span>→ 7 · Project files &amp; code</span></button>
+    <div class="stats" aria-label="Key numbers">
+      <div><span class="k">Recall</span><b>82.1%</b><span class="d">of churners caught</span></div>
+      <div><span class="k">ROC-AUC</span><b>83.7%</b><span class="d">ranking quality</span></div>
+      <div><span class="k">Customers</span><b>7,043</b><span class="d">1,409 held out for testing</span></div>
+      <div><span class="k">Tests</span><b>59</b><span class="d">run on every push</span></div>
+      <div><span class="k">Data checks</span><b>62</b><span class="d">before every training run</span></div>
     </div>
   </header>
 
@@ -307,8 +284,7 @@ ol.flow span { color: var(--muted); }
   </div>
 
   <section class="gloss" aria-labelledby="gh">
-    <h2 id="gh">Words used on this map</h2>
-    <p>Short, plain definitions of the terms in the diagrams, with this project's real numbers.</p>
+    <h2 id="gh">Key terms</h2>
     <div class="terms" id="terms"></div>
   </section>
 </div>
@@ -739,7 +715,7 @@ main_jsx: { t: "main.jsx", s: "starts React", path: "frontend/src/main.jsx", z: 
 
 app_jsx: { t: "App.jsx", s: "page routes", path: "frontend/src/App.jsx", z: "web", st: "live",
   plain: "Decides which page to show for each web address, with the menu bar on top.",
-  vars: [["/", "Predict", ""], ["/bulk", "BulkPredict", ""], ["/history", "History", ""], ["/insights", "Insights", ""], ["/dataset", "Dataset", ""]],
+  vars: [["/", "Predict", ""], ["/bulk", "BulkPredict", ""], ["/history", "History", ""], ["/insights", "Insights", ""], ["/dataset", "Dataset", ""], ["/system-map", "SystemMap", "this map, full width"]],
   lang: "JSX (trimmed)",
   code: `<BrowserRouter>
   <Navbar />
@@ -754,8 +730,8 @@ app_jsx: { t: "App.jsx", s: "page routes", path: "frontend/src/App.jsx", z: "web
   uses: ["navbar", "predict_jsx", "bulk_jsx", "history_jsx", "insights_jsx", "dataset_jsx"], usedBy: ["main_jsx"] },
 
 navbar: { t: "Navbar.jsx", s: "the top menu", path: "frontend/src/components/Navbar.jsx", z: "web", st: "live",
-  plain: "The menu bar at the top of every page: the ChurnIQ logo, links to the five pages, and a link to the author's GitHub.",
-  vars: [["links", "5 entries", "{ to: \"/\", label: \"Predict\" } … { to: \"/dataset\", label: \"Dataset\" }"]],
+  plain: "The menu bar at the top of every page: the ChurnIQ logo, links to the six pages, and a link to the author's GitHub.",
+  vars: [["links", "6 entries", "{ to: \"/\", label: \"Predict\" } … { to: \"/system-map\", label: \"System Map\" }"]],
   uses: [], usedBy: ["app_jsx"] },
 
 api_js: { t: "api.js", s: "talks to the server", path: "frontend/src/api.js", z: "web", st: "live",
@@ -996,7 +972,7 @@ const FILE_EDGES = [
   { f: "index_html", t: "main_jsx", kind: "run", l: "", name: "index.html loads main.jsx", d: "index.html loads /src/main.jsx as the website's starting script." },
   { f: "main_jsx", t: "app_jsx", kind: "run", l: "", name: "main.jsx renders <App/>", d: "main.jsx draws App into the #root box." },
   { f: "app_jsx", t: "navbar", kind: "run", l: "", name: "App shows the menu", d: "App shows the Navbar on every page." },
-  { f: "app_jsx", t: "predict_jsx", kind: "run", l: "5 routes", name: "App shows one of the 5 pages", d: "App picks the page for each address: / Predict, /bulk, /history, /insights, /dataset." },
+  { f: "app_jsx", t: "predict_jsx", kind: "run", l: "6 routes", name: "App shows one of the 6 pages", d: "App picks the page for each address: / Predict, /bulk, /history, /insights, /dataset, /system-map." },
   { f: "ci", t: "dockerfile", kind: "run", l: "", name: "CI builds the image from the dockerfile", d: "Job build-and-push builds the image from the dockerfile (after the tests pass)." },
   { f: "ci", t: "pytest_ini", kind: "run", fs: "right", ts: "right", l: "runs pytest", name: "CI runs python -m pytest", d: "Job test runs pytest, which reads pytest.ini to find the tests/ folder." },
   { f: "ci", t: "smoke", kind: "run", l: "", name: "CI runs the smoke test after deploy", d: "Job deploy runs scripts/smoke_test.py against the live API once Render reports the new commit." },
@@ -1099,7 +1075,7 @@ const VIEWS = [
       path: "https://customer-churn-senior-proj.vercel.app", nums: "Knows the server's address from the setting VITE_API_URL" },
     { id: "browser", x: 630, y: 420, w: 250, z: "web", t: "Your browser", s: "the app you use", file: "app_jsx",
       plain: "Where the website actually runs: Chrome, Safari… It shows the pages, sends questions to the server and draws the answers.",
-      nums: "5 pages: Predict, Bulk Predict, History, Insights, Dataset" },
+      nums: "6 pages: Predict, Bulk Predict, History, Insights, Dataset, System Map" },
   ],
   edges: [
     { f: "dev", t: "github", l: "git push" },
@@ -1378,7 +1354,6 @@ const VIEWS = [
 const TERMS = [
   ["Training", "Teaching the model from past examples where the answer is already known. Done by scripts/run_pipeline.py."],
   ["Inference", "Using the trained model to predict for someone new. Every click on Predict is one inference. It never changes the model."],
-  ["Model", "A file that holds what was learned in training. Here: model/model.pkl, an XGBoost model."],
   ["Feature", "One number the model looks at. The 19 customer details become 30 features."],
   ["One-hot encoding", "Turning a choice into yes/no columns. Contract becomes Contract_One year and Contract_Two year; Month-to-month means both are 0."],
   ["Probability & threshold", "The model gives a number from 0 to 1. At 0.35 or more we say \"likely to churn\". A lower threshold catches more leavers but raises more false alarms."],
@@ -1386,14 +1361,9 @@ const TERMS = [
   ["ROC-AUC", "How well the model ranks people: the chance a random leaver gets a higher score than a random stayer (83.7%). 50% is a coin flip."],
   ["Train/test split", "Keeping 20% of customers hidden during training to test on later, like an exam with unseen questions."],
   ["API · endpoint", "The API is how the website talks to the server. An endpoint is one address on it, like POST /predict."],
-  ["JSON", "The text format the browser and server use to send data, e.g. {\"tenure\": 5}."],
-  ["HTTP status codes", "200 = OK. 422 = your input is wrong (with the reason). 500 = something broke on the server."],
   ["Train/serve skew", "When training and the server prepare data differently, so predictions are quietly wrong. Tests now check every customer on each push."],
   ["Docker image", "A packed box with Python, all libraries, the code and the model, so the server runs the same everywhere."],
-  ["CI/CD", "Automation that tests, packs and deploys the code on every push. Here: GitHub Actions."],
-  ["Deploy hook · smoke test", "A deploy hook is a secret link that tells Render to deploy. A smoke test is a quick check of the live site right after."],
   ["MLflow · Great Expectations", "MLflow records every training run. Great Expectations runs the 62 data checks before training."],
-  ["localStorage", "A small storage space inside your own browser. History lives there; the server never sees it."],
 ];
 
 /* ====================================================================== ENGINE */
@@ -1752,13 +1722,9 @@ VIEWS.forEach((v, i) => {
   b.onclick = () => setView(v.id, true);
   $("#tabs").appendChild(b);
 });
-document.querySelectorAll("[data-path]").forEach((b) => b.onclick = () => {
-  setView(b.dataset.path, true);
-  $("#app").scrollIntoView({ behavior: "smooth", block: "start" });
-});
 $("#legend").innerHTML = Object.values(ZONES).map((z) => `<span><i class="dot" style="--z:var(${z.v})"></i>${z.name}</span>`).join("") +
   `<span><svg width="26" height="8" aria-hidden="true"><path d="M1 4h24" stroke="var(--fail)" stroke-width="2" stroke-dasharray="5 4"/></svg>when something fails</span>` +
-  `<span>Click boxes and arrows to explain them</span><span class="note" id="arrowNote"></span>`;
+  `<span class="note" id="arrowNote"></span>`;
 $("#terms").innerHTML = TERMS.map(([t, d]) => `<div class="term"><b>${esc(t)}</b><span>${esc(d)}</span></div>`).join("");
 
 $("#zIn").onclick = () => zoomBy(1.2);
