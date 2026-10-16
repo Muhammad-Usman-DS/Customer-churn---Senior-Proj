@@ -6,6 +6,7 @@ const links = [
   { to: "/history", label: "History" },
   { to: "/insights", label: "Insights" },
   { to: "/dataset", label: "Dataset" },
+  { to: "/system-map", label: "System Map" },
 ];
 
 export default function Navbar() {

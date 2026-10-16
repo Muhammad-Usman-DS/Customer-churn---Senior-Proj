@@ -1,0 +1,1821 @@
+<!doctype html><html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<title>ChurnIQ System Map</title>
+<meta name="description" content="How the ChurnIQ churn model is trained, served, tested and deployed, file by file.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+</head><body>
+<style>
+/* Layout: a guided system map. At-a-glance strip and reader paths up top; seven tabs from
+   the simplest idea to every file; diagram (zoom, drag, full screen) beside an explainer
+   panel; a code sheet opens over everything for any file. */
+:root {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --ink: #142033;
+  --muted: #566880;
+  --rule: #d5dde8;
+  --edge: #8a99ad;
+  --accent: #2456d3;
+  --fail: #c2412d;
+  --scrim: rgba(13, 19, 28, .55);
+
+  --z-data: #a8650f;
+  --z-model: #7342d6;
+  --z-ci: #16803c;
+  --z-api: #2456d3;
+  --z-web: #0c7d87;
+  --z-host: #5b6b80;
+
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d131c; --surface: #141c28; --ink: #e8eef7; --muted: #9fafc3; --rule: #2c3849;
+    --edge: #6b7c94; --accent: #86abff; --fail: #f07a62; --scrim: rgba(0, 0, 0, .62);
+    --z-data: #e8ab55; --z-model: #b096fc; --z-ci: #58d886; --z-api: #86abff; --z-web: #46cbd5; --z-host: #a3b1c4;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d131c; --surface: #141c28; --ink: #e8eef7; --muted: #9fafc3; --rule: #2c3849;
+  --edge: #6b7c94; --accent: #86abff; --fail: #f07a62; --scrim: rgba(0, 0, 0, .62);
+  --z-data: #e8ab55; --z-model: #b096fc; --z-ci: #58d886; --z-api: #86abff; --z-web: #46cbd5; --z-host: #a3b1c4;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15.5px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+.wrap { max-width: 1480px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+header { display: flex; flex-direction: column; gap: 12px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(30px, 4.4vw, 46px); line-height: 1.05; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+.lede { margin: 0; max-width: 74ch; color: var(--muted); font-size: 16.5px; }
+
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 0; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); }
+.glance > div { padding: 14px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0; border-left: 1px solid var(--rule); }
+.glance > div:first-child { border-left: 0; }
+@media (max-width: 900px) { .glance > div { border-left: 0; border-top: 1px solid var(--rule); } .glance > div:first-child { border-top: 0; } }
+.glance h4 { margin: 0; font: 500 11.5px var(--f-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.glance ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 14.5px; }
+.glance b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font: 400 12.5px var(--f-mono); padding: 2px 8px; border: 1px solid var(--rule); border-radius: 999px; color: var(--ink); }
+
+.paths { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+.pathbtn { font: 500 13.5px/1.2 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 999px; padding: 7px 13px; cursor: pointer; }
+.pathbtn b { font-weight: 600; }
+.pathbtn span { color: var(--muted); }
+.pathbtn:hover { border-color: var(--accent); }
+
+#app { display: flex; flex-direction: column; gap: 14px; }
+.bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; border-bottom: 1px solid var(--rule); }
+nav.tabs { display: flex; flex-wrap: wrap; gap: 0; }
+.tab { font: 500 14.5px/1 var(--f-body); color: var(--muted); background: none; border: 0; padding: 12px 12px 13px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 7px; align-items: baseline; }
+.tab .n { font: 500 11.5px var(--f-mono); color: var(--muted); }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.stage-tools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: flex-end; }
+.tools { display: flex; gap: 6px; align-items: center; }
+.zoomval { font: 500 12.5px var(--f-mono); color: var(--muted); min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+
+.btn { font: 500 13.5px/1 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 7px; padding: 8px 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: var(--edge); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+.tab:focus-visible, .btn:focus-visible, .link:focus-visible, .pathbtn:focus-visible, .codebtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 5px; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 18px; align-items: start; }
+@media (max-width: 1180px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.stage { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; min-width: 0; display: flex; flex-direction: column; }
+/* Full screen shows only the flowchart: real browser full screen, or a page-filling fallback */
+.stage:fullscreen { width: 100%; height: 100%; border: 0; border-radius: 0; }
+.stage.full {
+  position: fixed; inset: 0; z-index: 100; border: 0; border-radius: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+.stage:fullscreen .scroller, .stage.full .scroller { flex: 1; min-height: 0; display: flex; }
+.stage:fullscreen svg.map, .stage.full svg.map { margin: auto; }
+.stage:fullscreen .stage-head p, .stage.full .stage-head p { display: none; }
+.stage::backdrop { background: var(--surface); }
+.stage-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; padding: 14px 18px; border-bottom: 1px solid var(--rule); }
+.stage-head h2 { font-family: var(--f-display); font-weight: 600; font-size: 22px; margin: 0; }
+.stage-head p { margin: 3px 0 0; font-size: 14.5px; color: var(--muted); max-width: 76ch; }
+.tour { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.scroller { overflow: auto; padding: 16px 12px 18px; cursor: grab; }
+.scroller.dragging { cursor: grabbing; user-select: none; }
+svg.map { display: block; margin: 0 auto; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); padding: 0 18px 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--z); flex: none; display: inline-block; }
+
+/* diagram */
+.zone-bg { fill: color-mix(in srgb, var(--z) 5%, transparent); stroke: color-mix(in srgb, var(--z) 35%, transparent); stroke-dasharray: 5 6; }
+.zone-label { font: 600 13px var(--f-mono); fill: var(--z); letter-spacing: .06em; text-transform: uppercase; }
+.folder-label { font: 600 13px var(--f-mono); fill: var(--z); }
+.zone-note { font: 400 13px var(--f-body); fill: var(--muted); }
+.node { cursor: pointer; outline: none; }
+.node rect.box { fill: color-mix(in srgb, var(--z) 10%, var(--surface)); stroke: color-mix(in srgb, var(--z) 50%, var(--surface)); stroke-width: 1.3; transition: stroke-width .15s, fill .15s; }
+.node.ghost rect.box { fill: var(--surface); stroke-dasharray: 5 4; }
+.node.broken rect.box { stroke: var(--fail); stroke-dasharray: 5 4; fill: color-mix(in srgb, var(--fail) 6%, var(--surface)); }
+.node:hover rect.box, .node:focus-visible rect.box { stroke: var(--z); stroke-width: 2.2; }
+.node.sel rect.box { fill: color-mix(in srgb, var(--z) 22%, var(--surface)); stroke: var(--z); stroke-width: 2.6; }
+.node .t { font: 600 16.5px var(--f-body); fill: var(--ink); }
+.files .node .t { font-size: 15px; }
+.node .s { font: 400 12.5px var(--f-mono); fill: var(--muted); }
+.files .node .s { font-size: 12px; }
+.node .pip { fill: var(--z); }
+.node .badge { fill: var(--z); }
+.node .badge-n { font: 600 12px var(--f-mono); fill: var(--surface); }
+.edge { cursor: pointer; }
+.edge path.line { fill: none; stroke: var(--edge); stroke-width: 1.7; transition: opacity .15s, stroke .15s; }
+.edge path.hit { fill: none; stroke: transparent; stroke-width: 16; }
+.edge.fail path.line { stroke: var(--fail); stroke-dasharray: 6 5; }
+.edge.run path.line { stroke-dasharray: 1.5 5; stroke-linecap: round; stroke-width: 2.2; }
+.legend .note { color: var(--ink); flex-basis: 100%; }
+.edge rect.pill { fill: var(--surface); stroke: var(--rule); stroke-width: 1; }
+.edge text { font: 500 12.5px var(--f-mono); fill: var(--muted); }
+.edge.fail text { fill: var(--fail); }
+.edge:hover path.line { stroke: var(--accent); }
+.edge.hot path.line { stroke: var(--accent); stroke-width: 2.6; }
+.edge.hot rect.pill { stroke: var(--accent); }
+.edge.hot text { fill: var(--ink); }
+.dim .node:not(.sel):not(.near) { opacity: .36; }
+.dim .edge:not(.hot) { opacity: .18; }
+.arrow { fill: var(--edge); }
+.arrow-hot { fill: var(--accent); }
+.arrow-fail { fill: var(--fail); }
+
+/* explainer panel */
+aside.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 20px 20px 22px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 14px; min-width: 0; max-height: calc(100vh - 24px); overflow: auto; }
+@media (max-width: 1180px) { aside.panel { position: static; max-height: none; } }
+.zchip { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; font: 500 11.5px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--z); background: color-mix(in srgb, var(--z) 11%, var(--surface)); border-radius: 999px; padding: 4px 10px 4px 8px; }
+.stchip { font: 500 11.5px var(--f-mono); letter-spacing: .04em; color: var(--muted); border: 1px solid var(--rule); border-radius: 999px; padding: 3px 9px; }
+.stchip.bad { color: var(--fail); border-color: color-mix(in srgb, var(--fail) 45%, var(--surface)); }
+.chiprow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.panel h3 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-height: 1.15; margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.plain { margin: 0; font-size: 17px; line-height: 1.5; }
+.sec { font: 500 11.5px var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 4px 0 -6px; }
+.path { font: 400 12.5px var(--f-mono); color: var(--muted); overflow-wrap: anywhere; margin: 0; }
+.what { margin: 0; font-size: 14.5px; }
+dl.facts2 { margin: 0; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px 12px; font-size: 14px; }
+dl.facts2 dt { font: 500 11.5px var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding-top: 2px; }
+dl.facts2 dd { margin: 0; overflow-wrap: anywhere; }
+.example { display: flex; flex-direction: column; gap: 6px; }
+.example .lbl { font: 500 11.5px var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
+pre { margin: 0; font: 400 12.5px/1.55 var(--f-mono); background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; overflow-x: auto; white-space: pre; color: var(--ink); tab-size: 4; }
+.conns { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.link { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 6px; text-align: left; background: none; border: 0; padding: 5px 0; cursor: pointer; color: var(--ink); font: 400 14px/1.4 var(--f-body); }
+.link .dir { color: var(--muted); font-family: var(--f-mono); }
+.link b { font-weight: 600; }
+.link span.l { color: var(--muted); font-family: var(--f-mono); font-size: 12.5px; display: block; }
+.link:hover b { color: var(--accent); }
+.codebtn { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; font: 500 14.5px/1.3 var(--f-body); color: var(--surface); background: var(--accent); border: 0; border-radius: 8px; padding: 11px 14px; cursor: pointer; }
+.codebtn small { display: block; font: 400 12px var(--f-mono); opacity: .85; overflow-wrap: anywhere; }
+.flowends { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center; }
+.flowend { border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.flowend b { font-weight: 600; overflow-wrap: anywhere; }
+.flowend .btn { align-self: flex-start; padding: 6px 9px; font-size: 12.5px; }
+.flowarrow { font: 500 18px var(--f-mono); color: var(--accent); }
+
+/* code sheet */
+#codeview { position: fixed; inset: 0; z-index: 200; background: var(--scrim); display: flex; justify-content: center; align-items: flex-start; padding: calc(env(safe-area-inset-top, 0px) + 24px) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 24px) max(16px, env(safe-area-inset-left, 0px)); overflow: auto; }
+.sheet { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; width: min(980px, 100%); display: flex; flex-direction: column; min-width: 0; }
+.sheet-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 20px 24px 16px; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--surface); border-radius: 12px 12px 0 0; z-index: 1; }
+.sheet-head h2 { font-family: var(--f-display); font-weight: 600; font-size: 28px; margin: 6px 0 2px; overflow-wrap: anywhere; }
+.sheet-body { padding: 18px 24px 26px; display: flex; flex-direction: column; gap: 22px; }
+.sheet section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.sheet h3 { margin: 0; font: 600 13px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.sheet .plain { max-width: 72ch; }
+.tbl { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; }
+.tbl table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.tbl th, .tbl td { text-align: left; vertical-align: top; padding: 9px 12px; border-top: 1px solid var(--rule); }
+.tbl tr:first-child th, .tbl tr:first-child td { border-top: 0; }
+.tbl th { font: 500 11.5px var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--bg); }
+.tbl td.code { font: 400 13px var(--f-mono); white-space: nowrap; color: var(--ink); }
+.tbl td.val { font: 400 13px var(--f-mono); color: var(--ink); }
+.calcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 10px; }
+.calc { border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.calc b { font-weight: 600; }
+.calc .f { font: 400 13px/1.5 var(--f-mono); color: var(--ink); overflow-wrap: anywhere; }
+.calc .r { font: 500 13px/1.5 var(--f-mono); color: var(--accent); overflow-wrap: anywhere; }
+.rel { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.rel > div { display: flex; flex-direction: column; gap: 6px; }
+.rel .lbl { font: 500 11.5px var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.relbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.relbtns .btn { font: 400 12.5px var(--f-mono); padding: 6px 9px; }
+.relbtns em { font-style: normal; color: var(--muted); font-size: 13.5px; }
+.notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; }
+.code-lbl { font-size: 13px; color: var(--muted); margin: 0; }
+ol.flow { margin: 0; padding-left: 26px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+ol.flow li::marker { font: 600 13px var(--f-mono); color: var(--accent); }
+ol.flow b { font-weight: 600; display: block; font-family: var(--f-mono); font-size: 13px; }
+ol.flow span { color: var(--muted); }
+
+/* glossary */
+.gloss { display: flex; flex-direction: column; gap: 14px; }
+.gloss h2 { font-family: var(--f-display); font-weight: 600; font-size: 26px; margin: 0; }
+.gloss > p { margin: 0; color: var(--muted); max-width: 72ch; }
+.terms { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.term { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.term b { font-weight: 600; font-size: 15.5px; }
+.term span { font-size: 14.5px; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Telco customer churn · senior portfolio project</div>
+    <h1>ChurnIQ System Map</h1>
+    <p class="lede">ChurnIQ predicts which telecom customers are likely to cancel, so a retention team can reach them first. This map explains the whole project: how the model learns, how one prediction works, how code reaches the live site, and what every file does.</p>
+
+    <div class="glance" aria-label="Project at a glance">
+      <div>
+        <h4>Results</h4>
+        <ul>
+          <li>Catches <b>82.1%</b> of customers who leave (recall)</li>
+          <li>Ranks a leaver above a stayer <b>83.7%</b> of the time (ROC-AUC)</li>
+          <li>Trained on <b>7,043</b> real customers, tested on <b>1,409</b> unseen</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Engineering</h4>
+        <ul>
+          <li><b>59</b> automated tests, run on every push</li>
+          <li><b>62</b> data-quality checks before training</li>
+          <li>Push → test → deploy → <b>5</b> checks on the live site</li>
+          <li>Input validation with clear error messages</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Built with</h4>
+        <div class="chips">
+          <span class="chip">Python</span><span class="chip">pandas</span><span class="chip">XGBoost</span><span class="chip">Great Expectations</span><span class="chip">MLflow</span><span class="chip">FastAPI</span><span class="chip">React</span><span class="chip">Docker</span><span class="chip">GitHub Actions</span><span class="chip">Render</span><span class="chip">Vercel</span><span class="chip">pytest</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="paths" aria-label="Where to start">
+      <span>Where to start:</span>
+      <button class="pathbtn" data-path="start"><b>New to ML</b> <span>→ 1 · Start here</span></button>
+      <button class="pathbtn" data-path="overview"><b>Quick overview</b> <span>→ 2 · Where it runs, then 6 · Release</span></button>
+      <button class="pathbtn" data-path="files"><b>Developer</b> <span>→ 7 · Project files &amp; code</span></button>
+    </div>
+  </header>
+
+  <div id="app">
+    <div class="bar">
+      <nav class="tabs" role="tablist" aria-label="Diagrams" id="tabs"></nav>
+    </div>
+
+    <div class="grid">
+      <section class="stage" id="stage">
+        <div class="stage-head">
+          <div>
+            <h2 id="vtitle"></h2>
+            <p id="vsub"></p>
+          </div>
+          <div class="stage-tools">
+            <div class="tour" id="tour"></div>
+            <div class="tools">
+              <button class="btn" id="zOut" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+              <span class="zoomval" id="zVal">Fit</span>
+              <button class="btn" id="zIn" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
+              <button class="btn" id="zFit">Fit</button>
+              <button class="btn" id="fs"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Full screen</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="scroller" id="scroller"><svg class="map" id="map" role="group" aria-label="Diagram"></svg></div>
+        <div class="legend" id="legend"></div>
+      </section>
+      <aside class="panel" id="panel" aria-live="polite"></aside>
+    </div>
+  </div>
+
+  <section class="gloss" aria-labelledby="gh">
+    <h2 id="gh">Words used on this map</h2>
+    <p>Short, plain definitions of the terms in the diagrams, with this project's real numbers.</p>
+    <div class="terms" id="terms"></div>
+  </section>
+</div>
+
+<div id="codeview" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cvTitle" id="sheet"></div>
+</div>
+
+<script>
+const ZONES = {
+  data:  { name: "Data & training", v: "--z-data" },
+  model: { name: "The model", v: "--z-model" },
+  ci:    { name: "Automation & tests", v: "--z-ci" },
+  api:   { name: "Server (API)", v: "--z-api" },
+  web:   { name: "Website", v: "--z-web" },
+  host:  { name: "Hosting, config & docs", v: "--z-host" },
+};
+const STATUS = {
+  live: "Part of the live app", train: "Used for training", explore: "Exploration only",
+  auto: "Automation & tests", doc: "Documentation", unused: "Not used anywhere", broken: "Broken file",
+};
+
+/* ====================================================================== FILES
+   One entry per important file: what it does in plain words, then the technical
+   summary (functions, variables, calculations, a short excerpt of the real code). */
+const FILES = {
+csv: { t: "Telco dataset", s: "7,043 customers · CSV", path: "data/WA_Fn-UseC_-Telco-Customer-Churn.csv", z: "data", st: "train",
+  plain: "The raw data everything starts from: one row per customer, 21 columns, including whether they left (Churn = Yes or No).",
+  vars: [["Rows", "7,043", "one row per customer"], ["Columns", "21", "customerID, 19 customer details, Churn"], ["Churn = Yes", "1,869", "customers who left"], ["TotalCharges = \" \"", "11 rows", "brand-new customers (tenure 0); cleaned to 0 later"]],
+  calcs: [["Churn rate", "1,869 ÷ 7,043", "= 0.265 → 26.5%"], ["Average tenure", "mean of tenure", "32.4 months"]],
+  lang: "csv · first two lines",
+  code: `customerID,gender,SeniorCitizen,Partner,Dependents,tenure,PhoneService,MultipleLines,
+InternetService,OnlineSecurity,OnlineBackup,DeviceProtection,TechSupport,StreamingTV,
+StreamingMovies,Contract,PaperlessBilling,PaymentMethod,MonthlyCharges,TotalCharges,Churn
+7590-VHVEG,Female,0,Yes,No,1,No,No phone service,DSL,No,Yes,No,No,No,No,
+Month-to-month,Yes,Electronic check,29.85,29.85,No`,
+  notes: ["Source: IBM Telco Customer Churn on Kaggle.", "Not copied into the Docker image (.dockerignore excludes data/), so the live server never reads it."],
+  uses: [], usedBy: ["load_data", "eda", "prepare", "conftest"] },
+
+eda: { t: "EDA.ipynb", s: "exploration notebook", path: "EDA.ipynb", z: "data", st: "explore",
+  plain: "A Jupyter notebook where the data was first explored and several models were compared. It isn't part of the automatic pipeline; it's the lab where the decisions were made.",
+  fns: [["Binary & one-hot encoding", "first attempt at turning text columns into numbers"], ["Cleaning", "TotalCharges to a number, drop customerID"], ["Correlation with Churn", "e.g. tenure −0.35: longer customers leave less"], ["Multicollinearity (VIF)", "found strongly overlapping columns, e.g. the six \"No internet service\" columns"], ["Model comparison", "Random Forest, LightGBM and XGBoost, each at threshold 0.3"], ["Optuna + MLflow", "30 tuning trials maximising recall, logged to MLflow"], ["Cost-analysis modelling", "started: heading only so far"]],
+  calcs: [["Random Forest @ 0.3", "recall 0.719 · precision 0.526", "F1 0.608"], ["LightGBM @ 0.3", "recall 0.818 · precision 0.498 · 1.92 s to train", "F1 0.619"], ["XGBoost @ 0.3", "recall 0.818 · precision 0.493 · 0.61 s to train", "F1 0.615"], ["Decision", "similar quality, XGBoost about 3× faster", "XGBoost chosen"]],
+  lang: "Python · VIF cell (trimmed)",
+  code: `from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+X = X.replace([np.inf, -np.inf], np.nan).dropna()
+vif_data = pd.DataFrame()
+vif_data['feature'] = X.columns
+vif_data['VIF'] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]`,
+  notes: ["Two known issues, both notebook-only: the Optuna cell scores trials on the test set, and its MLflow cell writes to the folder above the project.", "It reads the CSV through an absolute path on the author's laptop."],
+  uses: ["csv"], usedBy: [] },
+
+run_pipeline: { t: "run_pipeline.py", s: "trains the model", path: "scripts/run_pipeline.py", z: "data", st: "train",
+  plain: "The one command that trains the model from scratch. It calls the other training files in order, trains XGBoost, scores it on unseen customers and records everything in MLflow.",
+  fns: [["main(args)", "runs every stage: load → validate → preprocess → features → split → train → evaluate → log to MLflow"], ["argparse block (bottom)", "reads --input, --target (Churn), --threshold (0.35), --test_size (0.2), --experiment, --mlflow_uri"]],
+  vars: [["project_root", "repo folder", "base for mlruns/ and artifacts/"], ["feature_cols", "30 names", "saved to artifacts/ and MLflow so serving uses the same order"], ["scale_pos_weight", "2.77", "extra weight on churners"], ["n_estimators", "301", "number of trees"], ["learning_rate", "0.034", "how strongly each tree corrects"], ["max_depth", "7", "how deep each tree may grow"], ["subsample · colsample_bytree", "0.95 · 0.98", "share of rows / columns each tree sees"], ["args.threshold", "0.35", "cut-off for \"likely to churn\""]],
+  calcs: [["Class weight", "scale_pos_weight = stayed ÷ churned (training set)", "4,139 ÷ 1,495 = 2.77"], ["Decision", "y_pred = 1 if proba ≥ 0.35 else 0", "626 of 1,409 test customers flagged"], ["Recall", "caught ÷ all who left = TP ÷ (TP + FN)", "307 ÷ 374 = 0.821"], ["Precision", "right flags ÷ all flags = TP ÷ (TP + FP)", "307 ÷ 626 = 0.490"], ["F1", "2 × P × R ÷ (P + R)", "2 × 0.490 × 0.821 ÷ 1.311 = 0.614"], ["ROC-AUC", "chance a random leaver scores higher than a random stayer", "0.837"]],
+  lang: "Python · core of main() (trimmed)",
+  code: `df = load_data(args.input)
+is_valid, failed = validate_telco_data(df)          # stop if any check fails
+df = preprocess_data(df)
+df_enc = build_features(df, target_col=target)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=args.test_size, stratify=y, random_state=42)
+
+scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
+
+model = XGBClassifier(
+    n_estimators=301, learning_rate=0.034, max_depth=7,
+    subsample=0.95, colsample_bytree=0.98, n_jobs=-1,
+    random_state=42, eval_metric="logloss",
+    scale_pos_weight=scale_pos_weight)
+model.fit(X_train, y_train)
+
+proba = model.predict_proba(X_test)[:, 1]
+y_pred = (proba >= args.threshold).astype(int)
+mlflow.log_metric("recall", recall_score(y_test, y_pred))
+mlflow.sklearn.log_model(model, artifact_path="model")`,
+  notes: ["The hyperparameters are typed in; they came from earlier Optuna tuning.", "Run: .venv/bin/python scripts/run_pipeline.py --input data/WA_Fn-UseC_-Telco-Customer-Churn.csv", "It does not touch model/. Promoting a model to production is a deliberate manual copy."],
+  flow: [
+    ["You run the command", "--input data/WA_Fn-UseC_-Telco-Customer-Churn.csv gives run_pipeline.py the file path."],
+    ["load_data(path) → table", "Only the path goes in. load_data.py reads the CSV and returns 7,043 × 21 to run_pipeline.py. This is where the data comes in."],
+    ["validate_telco_data(table) → pass/fail", "62 checks; on fail it logs the reasons to MLflow and stops."],
+    ["preprocess_data(table) → clean table", "7,043 × 20; also saved to data/processed/."],
+    ["build_features(clean) → features", "7,043 × 31: 30 features + Churn."],
+    ["Save the column list", "artifacts/feature_columns.json and preprocessing.pkl (also logged to MLflow)."],
+    ["Split 80 / 20", "X_train 5,634 × 30 · X_test 1,409 × 30, same churn rate in both."],
+    ["Train XGBoost", "301 trees with scale_pos_weight 2.77, on the 5,634 training rows."],
+    ["Score on the hidden 1,409", "probability ≥ 0.35 → churn; recall 0.821, precision 0.490, F1 0.614, AUC 0.837."],
+    ["Log to MLflow", "parameters, metrics and the model go into mlruns/."],
+  ],
+  uses: ["csv", "load_data", "validate", "preprocess", "build", "mlruns", "artifacts"], usedBy: [] },
+
+prepare: { t: "prepare_processed_data.py", s: "helper (run by hand)", path: "scripts/prepare_processed_data.py", z: "data", st: "unused",
+  plain: "A small helper you can run by hand to save the cleaned and encoded dataset as a CSV. Nothing else calls it.",
+  fns: [["(top-level script)", "read CSV → preprocess_data() → check Churn is 0/1 → build_features() → save CSV"]],
+  vars: [["RAW", "absolute path", "the CSV on the author's laptop"], ["OUT", "data/processed/telco_churn_processed.csv", "where the result is saved"]],
+  lang: "Python (trimmed)",
+  code: `df = pd.read_csv(RAW)
+df = preprocess_data(df, target_col="Churn")
+assert set(df["Churn"].unique()) <= {0, 1}, "Churn not 0/1 after preprocess"
+df_processed = build_features(df, target_col="Churn")
+df_processed.to_csv(OUT, index=False)`,
+  notes: ["The absolute RAW path means it only works on the author's machine.", "run_pipeline.py writes to the same OUT file, but before feature encoding, so the file's content depends on which ran last."],
+  uses: ["csv", "preprocess", "build"], usedBy: [] },
+
+smoke: { t: "smoke_test.py", s: "checks the live API", path: "scripts/smoke_test.py", z: "ci", st: "auto",
+  plain: "Runs after every deploy. It waits until the live server is running the new code, then uses it like a real visitor would, and fails loudly if anything is off.",
+  fns: [["request(path, body=None)", "GET (or POST with JSON) to the live API; returns (status code, JSON)"], ["wait_for_deploy()", "asks /version every 15 s until it reports the expected commit (gives up after 15 min)"], ["main()", "runs the 5 checks; exits with an error if any fail, which turns CI red"], ["check(name, ok, detail)", "prints PASS or FAIL and remembers failures"]],
+  vars: [["BASE", "https://telco-fastapi.onrender.com", "API address (first argument)"], ["EXPECTED_SHA", "commit SHA", "second argument, from CI"], ["WAIT_SECONDS", "900", "15 minutes"], ["CUSTOMER", "19 fields", "the sample fiber / month-to-month customer"]],
+  calcs: [["Polling", "one try every 15 s until 900 s have passed", "at most 60 tries"], ["Contract sanity check", "p(Month-to-month) > p(One year) > p(Two year)", "78.0 > 60.4 > 3.3 ✓"]],
+  lang: "Python · the contract check",
+  code: `probs = {}
+for contract in ["Month-to-month", "One year", "Two year"]:
+    status, body = request("/predict", dict(CUSTOMER, Contract=contract))
+    probs[contract] = body.get("probability") if status == 200 else None
+check(
+    "longer contracts lower churn risk",
+    None not in probs.values()
+    and probs["Month-to-month"] > probs["One year"] > probs["Two year"],
+    str(probs),
+)`,
+  notes: ["Uses only Python's standard library, so CI runs it without installing anything.", "Run it yourself: python3 scripts/smoke_test.py https://telco-fastapi.onrender.com"],
+  uses: ["main_py"], usedBy: ["ci"] },
+
+load_data: { t: "load_data.py", s: "opens the CSV", path: "src/data/load_data.py", z: "data", st: "train",
+  plain: "Opens the data file and turns it into a table Python can work with. If the file is missing it says so clearly.",
+  fns: [["load_data(file_path) → DataFrame", "checks the file exists, then reads it with pandas.read_csv"]],
+  lang: "Python (docstring removed)",
+  code: `def load_data(file_path: str) -> pd.DataFrame:
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    return pd.read_csv(file_path)`,
+  tested: "tests/test_data_features.py (raw shape 7,043 × 21; missing file raises)",
+  uses: ["csv"], usedBy: ["run_pipeline", "conftest"] },
+
+preprocess: { t: "preprocess.py", s: "basic cleaning", path: "src/data/preprocess.py", z: "data", st: "train",
+  plain: "Small clean-ups before encoding: remove the customer ID, turn Churn into 1/0, and make TotalCharges a real number.",
+  fns: [["preprocess_data(df, target_col=\"Churn\") → DataFrame", "trims column names, drops ID columns, maps Churn Yes/No → 1/0, converts TotalCharges, fills blank numbers with 0"]],
+  calcs: [["TotalCharges", "pd.to_numeric(\" \", errors=\"coerce\") → NaN → fillna(0)", "11 blanks → 0.0"], ["Columns", "21 − customerID", "20 columns"]],
+  lang: "Python (comments removed)",
+  code: `def preprocess_data(df, target_col="Churn"):
+    df.columns = df.columns.str.strip()
+    for col in ["customerID", "CustomerID", "customer_id"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
+    if target_col in df.columns and df[target_col].dtype == "object":
+        df[target_col] = df[target_col].str.strip().map({"No": 0, "Yes": 1})
+    if "TotalCharges" in df.columns:
+        df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
+    if "SeniorCitizen" in df.columns:
+        df["SeniorCitizen"] = df["SeniorCitizen"].fillna(0).astype(int)
+    num_cols = df.select_dtypes(include=["number"]).columns
+    df[num_cols] = df[num_cols].fillna(0)
+    return df`,
+  tested: "tests/test_data_features.py (no customerID, Churn is 0/1, TotalCharges numeric with no gaps)",
+  uses: [], usedBy: ["run_pipeline", "prepare", "conftest"] },
+
+validate: { t: "validate_data.py", s: "62 data checks", path: "src/utils/validate_data.py", z: "data", st: "train",
+  plain: "A safety check before training: is every column there, are all values ones we know, are the numbers in sensible ranges? If anything fails, training stops instead of learning from bad data.",
+  fns: [["validate_telco_data(df) → (passed, failed)", "runs all checks with Great Expectations; returns True/False and the names of failed checks"], ["_build_expectations() → list", "builds the 62 check objects"]],
+  vars: [["CATEGORICAL_SETS", "16 columns", "allowed values for each text column, e.g. Contract → 3 values"], ["YES_NO", "[\"Yes\", \"No\"]", "shared allowed set"], ["INTERNET_ADDON_VALUES", "Yes / No / No internet service", "for the six internet add-ons"]],
+  calcs: [["Number of checks", "3 (customerID) + 20 (columns exist) + 16 × 2 (not blank, known values) + 1 (SeniorCitizen) + 2 (not blank) + 3 (ranges) + 1 (consistency)", "= 62"], ["Consistency rule", "TotalCharges ≥ MonthlyCharges for at least 95% of rows", "passes on the real data"]],
+  lang: "Python (trimmed)",
+  code: `for col, values in CATEGORICAL_SETS.items():
+    expectations += [
+        gxe.ExpectColumnValuesToNotBeNull(column=col),
+        gxe.ExpectColumnValuesToBeInSet(column=col, value_set=values),
+    ]
+expectations += [
+    gxe.ExpectColumnValuesToBeBetween(column="tenure", min_value=0, max_value=120),
+    gxe.ExpectColumnValuesToBeBetween(column="MonthlyCharges", min_value=0, max_value=200),
+]
+
+context = gx.get_context(mode="ephemeral")          # in memory, writes no files
+batch = (context.data_sources.add_pandas("telco")
+         .add_dataframe_asset("raw_customers")
+         .add_batch_definition_whole_dataframe("full_dataframe")
+         .get_batch(batch_parameters={"dataframe": df}))
+results = batch.validate(suite)`,
+  notes: ["Failures name the check and column, e.g. expect_column_values_to_be_between(tenure).", "Usage analytics are turned off (GX_ANALYTICS_ENABLED=False) so training and CI stay offline."],
+  tested: "tests/test_data_features.py (clean data passes; negative tenure, unknown contract, duplicate ID and missing gender all fail)",
+  uses: [], usedBy: ["run_pipeline"] },
+
+utils: { t: "utils.py", s: "logging helper", path: "src/utils/utils.py", z: "data", st: "unused",
+  plain: "A helper for writing log files. Nothing in the project imports it.",
+  fns: [["setup_logger(name, log_file, level=INFO) → Logger", "creates a logger that writes timestamped lines to a file"]],
+  lang: "Python",
+  code: `def setup_logger(name: str, log_file: str, level=logging.INFO):
+    handler = logging.FileHandler(log_file)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+    return logger`,
+  uses: [], usedBy: [] },
+
+build: { t: "build_features.py", s: "text → 30 numbers", path: "src/features/build_features.py", z: "data", st: "train",
+  plain: "Models only understand numbers. This turns every text column into numbers: Yes/No becomes 1/0, and a choice with 3 or more options becomes separate yes/no columns.",
+  fns: [["build_features(df, target_col=\"Churn\") → DataFrame", "finds 2-option and 3+-option text columns, encodes them, returns 30 features + Churn"], ["_map_binary_series(s) → Series", "fixed mappings: Yes→1/No→0, Male→1/Female→0; otherwise alphabetical"]],
+  vars: [["binary_cols", "5 columns", "gender, Partner, Dependents, PhoneService, PaperlessBilling"], ["multi_cols", "10 columns", "MultipleLines, InternetService, the 6 internet add-ons, Contract, PaymentMethod"]],
+  calcs: [["One-hot with drop_first", "a column with k options → k − 1 columns", "Contract (3) → 2 · PaymentMethod (4) → 3"], ["Feature count", "4 numeric + 5 binary + 21 one-hot", "= 30"], ["Example", "Contract = \"Two year\"", "Contract_One year 0 · Contract_Two year 1"]],
+  lang: "Python (trimmed)",
+  code: `binary_cols = [c for c in obj_cols if df[c].dropna().nunique() == 2]
+multi_cols  = [c for c in obj_cols if df[c].dropna().nunique() > 2]
+
+for c in binary_cols:                       # Yes/No → 1/0, Male/Female → 1/0
+    df[c] = _map_binary_series(df[c].astype(str))
+
+# one column per option, minus the first (the "baseline")
+df = pd.get_dummies(df, columns=multi_cols, drop_first=True)
+
+def _map_binary_series(s):
+    valset = set(pd.Series(s.dropna().unique()).astype(str))
+    if valset == {"Yes", "No"}:
+        return s.map({"No": 0, "Yes": 1}).astype("Int64")
+    if valset == {"Male", "Female"}:
+        return s.map({"Female": 0, "Male": 1}).astype("Int64")`,
+  notes: ["inference.py must produce exactly the same 30 columns for one customer at a time; tests compare the two for all 7,043 customers."],
+  tested: "tests/test_data_features.py and tests/test_serving.py",
+  uses: [], usedBy: ["run_pipeline", "prepare", "conftest"] },
+
+train: { t: "train.py", s: "older training code", path: "src/models/train.py", z: "model", st: "unused",
+  plain: "An earlier, simpler training function. run_pipeline.py trains the model itself, so this file isn't used.",
+  fns: [["train_model(df, target_col)", "80/20 split (not stratified), XGBoost with 300 trees, depth 6, learning rate 0.1; logs accuracy and recall to MLflow"]],
+  lang: "Python (trimmed)",
+  code: `X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+model = XGBClassifier(n_estimators=300, learning_rate=0.1, max_depth=6,
+                      random_state=42, n_jobs=-1, eval_metric="logloss")
+with mlflow.start_run():
+    model.fit(X_train, y_train)
+    preds = model.predict(X_test)
+    mlflow.log_metric("accuracy", accuracy_score(y_test, preds))`,
+  notes: ["Differs from the real pipeline: no class weighting, default 0.5 threshold, no stratified split."],
+  uses: [], usedBy: [] },
+
+tune: { t: "tune.py", s: "Optuna search", path: "src/models/tune.py", z: "model", st: "unused",
+  plain: "Searches for good XGBoost settings automatically with Optuna. Not called anywhere now; the chosen settings are typed into run_pipeline.py.",
+  fns: [["tune_model(X, y) → best_params", "20 Optuna trials; each scores a model by 3-fold cross-validated recall"]],
+  vars: [["n_estimators", "300 – 800", "search range"], ["learning_rate", "0.01 – 0.2", "search range"], ["max_depth", "3 – 10", "search range"], ["subsample · colsample_bytree", "0.5 – 1.0", "search ranges"], ["n_trials", "20", "how many combinations to try"]],
+  calcs: [["Trial score", "mean recall over 3 folds of the data", "Optuna keeps the highest"]],
+  lang: "Python (trimmed)",
+  code: `def objective(trial):
+    params = {
+        "n_estimators": trial.suggest_int("n_estimators", 300, 800),
+        "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.2),
+        "max_depth": trial.suggest_int("max_depth", 3, 10),
+        ...
+    }
+    scores = cross_val_score(XGBClassifier(**params), X, y, cv=3, scoring="recall")
+    return scores.mean()
+
+study = optuna.create_study(direction="maximize")
+study.optimize(objective, n_trials=20)`,
+  notes: ["Uses cross-validation, so it never looks at the test set (unlike the notebook's tuning cell).", "Doesn't pass scale_pos_weight."],
+  uses: [], usedBy: [] },
+
+evaluate: { t: "evaluate.py", s: "prints a report", path: "src/models/evaluate.py", z: "model", st: "unused",
+  plain: "Prints a classification report and confusion matrix for a model. Not used: run_pipeline.py computes its own metrics at threshold 0.35.",
+  fns: [["evaluate_model(model, X_test, y_test)", "prints precision/recall per class and the confusion matrix using model.predict (threshold 0.5)"]],
+  lang: "Python",
+  code: `def evaluate_model(model, X_test, y_test):
+    preds = model.predict(X_test)
+    print("Classification Report:\\n", classification_report(y_test, preds))
+    print("Confusion Matrix:\\n", confusion_matrix(y_test, preds))`,
+  uses: [], usedBy: [] },
+
+mlruns: { t: "mlruns/", s: "MLflow run history", path: "mlruns/ (not in git)", z: "model", st: "train",
+  plain: "A diary that MLflow writes automatically: every training run's settings, scores and saved model, so runs can be compared side by side.",
+  vars: [["Experiment", "\"Telco Churn\"", "group of runs"], ["Parameters", "model, threshold, test_size", "logged by run_pipeline.py"], ["Metrics", "precision, recall, f1, roc_auc, train_time, pred_time, data_quality_pass", "logged per run"], ["Artifacts", "model/, feature_columns.txt, preprocessing.pkl", "files saved per run"]],
+  notes: ["Open the dashboard with: mlflow ui", "Gitignored: it stays on the laptop. The chosen model is copied to model/ to ship it."],
+  uses: [], usedBy: ["run_pipeline"] },
+
+artifacts: { t: "artifacts/", s: "column list (local)", path: "artifacts/feature_columns.json · artifacts/preprocessing.pkl (not in git)", z: "model", st: "train",
+  plain: "Saved by training: the exact list and order of the 30 feature columns, so serving can line its numbers up the same way.",
+  vars: [["feature_columns.json", "30 names", "column order"], ["preprocessing.pkl", "{feature_columns, target: \"Churn\"}", "same list plus the target name"]],
+  notes: ["Gitignored. The committed copy that production reads is model/feature_columns.txt."],
+  uses: [], usedBy: ["run_pipeline"] },
+
+model_pkl: { t: "model.pkl + MLmodel", s: "the trained model", path: "model/model.pkl · model/MLmodel (+ conda.yaml, python_env.yaml, requirements.txt, preprocessing.pkl)", z: "model", st: "live",
+  plain: "The trained model itself, in MLflow's format. This is what the live server loads and asks for predictions.",
+  vars: [["model.pkl", "1.38 MB", "the XGBoost model, saved with cloudpickle"], ["MLmodel", "metadata", "how to load it (python_function and sklearn flavours)"], ["python_version", "3.9.6", "Python it was saved with"], ["xgboost (model/requirements.txt)", "2.1.4", "production runs 3.0.3, hence a startup warning"], ["created", "2026-04-08", "MLflow run 488bb342…"]],
+  lang: "YAML · model/MLmodel (trimmed)",
+  code: `flavors:
+  python_function:
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    python_version: 3.9.6
+  sklearn:
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.6.1
+mlflow_version: 3.1.4
+model_size_bytes: 1378707`,
+  notes: ["Copied into the Docker image at /app/model by the dockerfile.", "Retraining under the production versions (planned) removes the version warning."],
+  tested: "tests/test_modeling.py (still scores the published recall and AUC)",
+  uses: [], usedBy: ["inference"] },
+
+feature_cols: { t: "feature_columns.txt", s: "30 names, in order", path: "model/feature_columns.txt", z: "model", st: "live",
+  plain: "The names of the 30 numbers the model expects, in the exact order it was trained with. The server reads this once at startup.",
+  lang: "text · all 30 lines",
+  code: `gender                               InternetService_No
+SeniorCitizen                        OnlineSecurity_No internet service
+Partner                              OnlineSecurity_Yes
+Dependents                           OnlineBackup_No internet service
+tenure                               OnlineBackup_Yes
+PhoneService                         DeviceProtection_No internet service
+PaperlessBilling                     DeviceProtection_Yes
+MonthlyCharges                       TechSupport_No internet service
+TotalCharges                         TechSupport_Yes
+MultipleLines_No phone service       StreamingTV_No internet service
+MultipleLines_Yes                    StreamingTV_Yes
+InternetService_Fiber optic          StreamingMovies_No internet service
+                                     StreamingMovies_Yes
+                                     Contract_One year
+                                     Contract_Two year
+                                     PaymentMethod_Credit card (automatic)
+                                     PaymentMethod_Electronic check
+                                     PaymentMethod_Mailed check`,
+  notes: ["Shown in two columns here; the file has one name per line (left column first).", "Missing from the list on purpose: the baseline options (Month-to-month, DSL, No, Bank transfer, Female…) are 'all zeros'."],
+  uses: [], usedBy: ["inference"] },
+
+metrics: { t: "model_metrics.json", s: "Insights page numbers", path: "model/model_metrics.json", z: "model", st: "live",
+  plain: "The model's exam results from training. The Insights page shows these numbers.",
+  calcs: [["F1 check", "2 × 0.490 × 0.821 ÷ (0.490 + 0.821)", "= 0.614 ✓"], ["Split check", "5,634 + 1,409", "= 7,043 ✓"]],
+  lang: "JSON",
+  code: `{
+  "recall": 0.821,
+  "precision": 0.490,
+  "f1": 0.614,
+  "roc_auc": 0.837,
+  "threshold": 0.35,
+  "training_samples": 5634,
+  "test_samples": 1409,
+  "total_samples": 7043,
+  "churn_rate": 0.265,
+  "model": "XGBoost",
+  "note": "Recall-optimised — threshold lowered to 0.35 to maximise churn detection"
+}`,
+  notes: ["Written by hand from the MLflow run; update it whenever a new model is promoted.", "tests/test_modeling.py fails if the model in model/ no longer scores these numbers (±0.02)."],
+  uses: [], usedBy: ["main_py"] },
+
+inference: { t: "inference.py", s: "the prediction engine", path: "src/serving/inference.py", z: "api", st: "live",
+  plain: "The heart of the live app. At startup it loads the model. For every request it cleans the input, turns it into 30 numbers exactly like training did, asks the model, and labels the answer.",
+  fns: [["predict(input_dict) → dict", "normalize_input → _serve_transform → predict_proba → threshold 0.35 → risk level; returns {prediction, probability, risk_level}"], ["normalize_input(input_dict) → dict", "trims spaces, ignores capitals, rejects unknown values, missing fields, non-numbers, negatives and impossible internet/phone combinations"], ["_serve_transform(df) → DataFrame", "1 row of 19 values → 1 row of 30 features in training order"], ["InvalidInputError(errors)", "error that carries every problem found; main.py turns it into HTTP 422"], ["_canonical(v) · _is_missing(v)", "helpers: \" Two  YEAR \" → \"two year\"; None, NaN and blanks count as missing"]],
+  vars: [["MODEL_DIR", "env var, default /app/model", "where the model is loaded from"], ["THRESHOLD", "0.35", "probability needed for \"Likely to churn\""], ["sklearn_model", "XGBClassifier", "loaded once at startup"], ["FEATURE_COLS", "30 names", "from model/feature_columns.txt"], ["BINARY_MAP", "5 columns", "Yes/No and Male/Female → 1/0"], ["CATEGORIES", "15 columns", "every allowed text value, spelled as in training"], ["REQUIRED_FIELDS", "19", "15 categories + SeniorCitizen + 3 numbers"], ["INTERNET_ADDONS", "6 columns", "fields that must say \"No internet service\" when there's no internet"]],
+  calcs: [["Probability", "sklearn_model.predict_proba(row)[0][1]", "0.7799"], ["Decision", "1 if proba ≥ 0.35 else 0", "0.7799 ≥ 0.35 → \"Likely to churn\""], ["Percentage", "round(proba × 100, 1)", "78.0"], ["Risk level", "≥ 65 High · ≥ 35 Medium · otherwise Low", "78.0 → High"], ["Why drop_first=False", "one customer = one option per column; drop_first=True would delete it", "reindex(FEATURE_COLS) drops the baseline instead"]],
+  lang: "Python · predict() and the key transform lines (trimmed)",
+  code: `def predict(input_dict: dict) -> dict:
+    df = pd.DataFrame([normalize_input(input_dict)])
+    df_enc = _serve_transform(df)
+
+    proba = float(sklearn_model.predict_proba(df_enc)[0][1])
+    result = 1 if proba >= THRESHOLD else 0
+
+    prob_pct = round(proba * 100, 1)
+    if prob_pct >= 65:   risk_level = "High"
+    elif prob_pct >= 35: risk_level = "Medium"
+    else:                risk_level = "Low"
+
+    return {"prediction": "Likely to churn" if result == 1 else "Not likely to churn",
+            "probability": prob_pct, "risk_level": risk_level}
+
+# inside _serve_transform():
+df = pd.get_dummies(df, columns=obj_cols, drop_first=False)
+df = df.reindex(columns=FEATURE_COLS, fill_value=0)     # training order`,
+  notes: ["If loading from MODEL_DIR fails, it falls back to the newest model in ./mlruns.", "The model loads when the file is imported, so tests set MODEL_DIR first (tests/conftest.py)."],
+  tested: "tests/test_serving.py (31 tests, including all 7,043 customers matching training) and tests/test_api.py",
+  uses: ["model_pkl", "feature_cols"], usedBy: ["main_py"] },
+
+main_py: { t: "main.py", s: "the API (FastAPI)", path: "src/app/main.py", z: "api", st: "live",
+  plain: "Defines the server's addresses (endpoints). It receives requests from the website, hands the real work to inference.py, and answers in JSON with proper error codes.",
+  fns: [["POST /predict → get_prediction(data)", "checks the 19 fields (CustomerData), calls predict(); 422 for bad input, 500 for server errors"], ["POST /predict-batch → predict_batch(file)", "reads the CSV (Excel-safe), checks columns, predicts row by row; returns predictions, total, failed"], ["GET /feature-importance", "pairs FEATURE_COLS with the model's importances, sorted high → low"], ["GET /model-stats", "reads model/model_metrics.json"], ["GET / (and HEAD) · GET /version", "{\"status\": \"ok\"} · the commit the server was built from"], ["_json_safe(row)", "blank CSV cells (NaN) → null so the JSON is valid"]],
+  vars: [["app", "FastAPI, version 2.0.0", "the server object uvicorn runs"], ["CustomerData", "19 fields", "16 text, SeniorCitizen and tenure as int, 2 charges as float"], ["CORS allow_origins", "[\"*\"]", "any site may call it; to be limited to the Vercel domain"]],
+  calcs: [["Batch summary", "failed = number of rows that have an \"error\"", "5 rows, 2 bad → total 5, failed 2"], ["Importance", "round(importance, 4), sorted descending", "Contract_Two year 0.3983 first"]],
+  lang: "Python · /predict and the core of /predict-batch (trimmed)",
+  code: `@app.post("/predict")
+def get_prediction(data: CustomerData):
+    try:
+        return predict(data.model_dump())
+    except InvalidInputError as e:
+        raise HTTPException(status_code=422, detail=e.errors)
+    except Exception:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Prediction failed due to a server error")
+
+# /predict-batch
+missing = [c for c in REQUIRED_FIELDS if c not in df.columns]
+if missing:
+    raise HTTPException(status_code=422, detail=[f"CSV is missing columns: {', '.join(missing)}"])
+for i, row_dict in enumerate(df.to_dict(orient="records"), start=1):
+    row_dict = _json_safe(row_dict)
+    try:
+        results.append({**row_dict, **predict(row_dict)})
+    except InvalidInputError as e:
+        results.append({**row_dict, "error": f"Row {i}: " + "; ".join(e.errors)})`,
+  notes: ["Started inside Docker by: python -m uvicorn src.app.main:app --host 0.0.0.0 --port 8000"],
+  tested: "tests/test_api.py (13 tests: every endpoint, bad input, CSV edge cases)",
+  uses: ["inference", "metrics"], usedBy: ["api_js", "smoke", "dockerfile"] },
+
+app_py: { t: "app.py", s: "old Gradio app", path: "src/app/app.py", z: "api", st: "unused",
+  plain: "An earlier version of the API with a Gradio web form. The React website replaced it, and main.py is the real API.",
+  fns: [["POST /predict → api_predict", "old response shape: {\"prediction\": …}"], ["gradio_interface(…)", "18 inputs → predict()"], ["mount_gradio_app(app, demo, path=\"/ui\")", "served the Gradio form at /ui"]],
+  notes: ["It imports gradio, which is no longer in requirements.txt, so it would crash if started.", "Its CustomerData has no SeniorCitizen field. Safe to delete."],
+  uses: ["inference"], usedBy: [] },
+
+index_html: { t: "index.html", s: "the page shell", path: "frontend/index.html", z: "web", st: "live",
+  plain: "The single HTML page the website loads. It has one empty box (#root); React fills it with the app.",
+  lang: "HTML (trimmed)",
+  code: `<title>ChurnIQ</title>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"><\/script>
+</body>`,
+  uses: ["main_jsx"], usedBy: [] },
+
+main_jsx: { t: "main.jsx", s: "starts React", path: "frontend/src/main.jsx", z: "web", st: "live",
+  plain: "The starting point of the website's code: it puts the App into the #root box.",
+  lang: "JSX",
+  code: `createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)`,
+  uses: ["app_jsx"], usedBy: ["index_html"] },
+
+app_jsx: { t: "App.jsx", s: "page routes", path: "frontend/src/App.jsx", z: "web", st: "live",
+  plain: "Decides which page to show for each web address, with the menu bar on top.",
+  vars: [["/", "Predict", ""], ["/bulk", "BulkPredict", ""], ["/history", "History", ""], ["/insights", "Insights", ""], ["/dataset", "Dataset", ""]],
+  lang: "JSX (trimmed)",
+  code: `<BrowserRouter>
+  <Navbar />
+  <Routes>
+    <Route path="/" element={<Predict />} />
+    <Route path="/bulk" element={<BulkPredict />} />
+    <Route path="/history" element={<History />} />
+    <Route path="/insights" element={<Insights />} />
+    <Route path="/dataset" element={<Dataset />} />
+  </Routes>
+</BrowserRouter>`,
+  uses: ["navbar", "predict_jsx", "bulk_jsx", "history_jsx", "insights_jsx", "dataset_jsx"], usedBy: ["main_jsx"] },
+
+navbar: { t: "Navbar.jsx", s: "the top menu", path: "frontend/src/components/Navbar.jsx", z: "web", st: "live",
+  plain: "The menu bar at the top of every page: the ChurnIQ logo, links to the five pages, and a link to the author's GitHub.",
+  vars: [["links", "5 entries", "{ to: \"/\", label: \"Predict\" } … { to: \"/dataset\", label: \"Dataset\" }"]],
+  uses: [], usedBy: ["app_jsx"] },
+
+api_js: { t: "api.js", s: "talks to the server", path: "frontend/src/api.js", z: "web", st: "live",
+  plain: "The only file in the website that talks to the server. Every page calls one of its functions instead of making requests itself.",
+  fns: [["predictSingle(data)", "POST /predict with the 19 fields"], ["predictBatch(file)", "POST /predict-batch with the CSV as a file upload"], ["getFeatureImportance()", "GET /feature-importance"], ["getModelStats()", "GET /model-stats"], ["errorMessage(err, fallback)", "turns any API error into a sentence for the screen"]],
+  vars: [["BASE_URL", "VITE_API_URL or http://localhost:8000", "server address, set in Vercel at build time"]],
+  calcs: [["Error message rule", "no response → \"Could not reach the API…\" · text detail → as is · list → joined with \" · \"", "\"Contract 'Two Yr' is not valid (…)\""]],
+  lang: "JavaScript (trimmed)",
+  code: `const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const api = axios.create({ baseURL: BASE_URL });
+
+export const predictSingle = (data) => api.post("/predict", data);
+export const getFeatureImportance = () => api.get("/feature-importance");
+export const getModelStats = () => api.get("/model-stats");
+
+export function errorMessage(err, fallback) {
+  const detail = err?.response?.data?.detail;
+  if (!err?.response) return "Could not reach the API. It may be waking up — try again in a minute.";
+  if (typeof detail === "string") return detail;
+  // lists of messages are joined with " · "
+  return fallback;
+}`,
+  uses: ["main_py"], usedBy: ["predict_jsx", "bulk_jsx", "insights_jsx"] },
+
+predict_jsx: { t: "Predict.jsx", s: "the Predict page", path: "frontend/src/pages/Predict.jsx", z: "web", st: "live",
+  plain: "The main page: a form with 19 customer details, a Predict button, the risk gauge, What-If mode, and saving each result to History.",
+  fns: [["Predict()", "the page; keeps form, result, loading, error and whatIfMode in React state"], ["handleChange(key, value)", "updates a field (keeping dependent fields consistent); in What-If mode predicts again"], ["runPredict(data)", "calls predictSingle(), shows the result or the error, saves successes to History"], ["applyDependencies(form, key, value)", "\"No\" internet → six add-ons become \"No internet service\" (same for phone)"], ["fieldState(form, key)", "says if a field is locked, and which option to hide"], ["RiskGauge({probability, riskLevel})", "draws the half-circle gauge"], ["saveToHistory(form, result)", "adds the result to localStorage, newest first"]],
+  vars: [["DEFAULTS", "a sample customer", "Fiber optic, month-to-month, 5 months, $70.35"], ["FIELDS", "4 sections · 19 fields", "Demographics, Phone, Internet, Account"], ["INTERNET_ADDONS", "6 field names", "locked when there's no internet"]],
+  calcs: [["Gauge arc", "filled length = probability ÷ 100 × 157 (157 ≈ π × 50, half a circle of radius 50)", "78.0 → 122.5 of 157"], ["History size", "history.slice(0, 200)", "keeps the newest 200"], ["Colours", "High → red · Medium → amber · Low → green", "from risk_level"]],
+  lang: "JSX (trimmed)",
+  code: `function applyDependencies(form, key, value) {
+  const updated = { ...form, [key]: value };
+  if (key === "InternetService") {
+    for (const f of INTERNET_ADDONS) {
+      if (value === "No") updated[f] = "No internet service";
+      else if (updated[f] === "No internet service") updated[f] = "No";
+    }
+  }
+  return updated;
+}
+
+async function runPredict(data = form) {
+  setLoading(true);
+  setError(null);
+  try {
+    const res = await predictSingle(data);
+    setResult(res.data);
+    saveToHistory(data, res.data);
+  } catch (err) {
+    setError(errorMessage(err, "Prediction failed. Please try again."));
+  } finally {
+    setLoading(false);
+  }
+}`,
+  uses: ["api_js"], usedBy: ["app_jsx"] },
+
+bulk_jsx: { t: "BulkPredict.jsx", s: "upload a CSV", path: "frontend/src/pages/BulkPredict.jsx", z: "web", st: "live",
+  plain: "Upload a spreadsheet of customers and get every row scored. Rows with mistakes are listed with the reason, and results can be downloaded.",
+  fns: [["handleFile(file)", "checks it's a .csv, sends it with predictBatch(), shows results or the error"], ["exportCSV(rows)", "builds a CSV from the results and downloads it"], ["summary", "counts High, Medium and Low rows, and collects failed rows"]],
+  calcs: [["Risk counts", "predictions.filter(r => r.risk_level === \"High\").length (and Medium, Low)", "shown in the summary cards"], ["Failed rows", "predictions.filter(r => r.error)", "listed above the table"]],
+  uses: ["api_js"], usedBy: ["app_jsx"] },
+
+history_jsx: { t: "History.jsx", s: "past predictions", path: "frontend/src/pages/History.jsx", z: "web", st: "live",
+  plain: "Lists the predictions saved in this browser. Filter by risk, export to CSV, or clear them. It never talks to the server.",
+  fns: [["History()", "reads localStorage \"churn_history\" when the page opens"], ["clearHistory()", "asks for confirmation, then deletes the saved list"], ["exportCSV(rows)", "downloads the filtered rows as churn_predictions.csv"]],
+  calcs: [["Filter", "All, or records where risk_level equals the chosen level", "e.g. only High"]],
+  uses: ["predict_jsx"], usedBy: ["app_jsx"] },
+
+insights_jsx: { t: "Insights.jsx", s: "model scores + chart", path: "frontend/src/pages/Insights.jsx", z: "web", st: "live",
+  plain: "Shows how good the model is (4 metric cards) and which details matter most to it (a bar chart), loaded from the server when the page opens.",
+  fns: [["Insights()", "loads both endpoints at once with Promise.all; shows an error message if either fails"], ["MetricCard({label, value, description, color})", "one score card"]],
+  calcs: [["Card values", "value × 100, one decimal", "0.821 → 82.1%"], ["Chart height", "topN × 28 + 20 pixels", "top 15 → 440 px"], ["Bar colour", "hsl(215 − i ÷ n × 40, 60 − i %, 45 + i %)", "bars fade from blue down the list"]],
+  uses: ["api_js"], usedBy: ["app_jsx"] },
+
+dataset_jsx: { t: "Dataset.jsx", s: "facts about the data", path: "frontend/src/pages/Dataset.jsx", z: "web", st: "live",
+  plain: "Charts and findings about the original dataset. The numbers are written into the page (from the analysis), so it needs no server.",
+  vars: [["STATS", "6 numbers", "7,043 customers · 21 features · 26.5% churn · 32 mo · $64.76 · 16.2% seniors"], ["CHURN_BY_CONTRACT", "42.7 / 11.3 / 2.8 %", "Month-to-month / One year / Two year"], ["CHURN_BY_INTERNET", "41.9 / 19.0 / 7.4 %", "Fiber optic / DSL / No internet"], ["CHURN_PIE", "73.5 / 26.5 %", "retained / churned"]],
+  notes: ["Every figure was re-checked against the CSV; all match."],
+  uses: [], usedBy: ["app_jsx"] },
+
+package_json: { t: "package.json", s: "website libraries", path: "frontend/package.json", z: "web", st: "live",
+  plain: "Lists the JavaScript libraries the website uses and the commands to run or build it. Vercel runs npm run build from here.",
+  vars: [["react · react-dom", "^19.2.4", "the UI library"], ["react-router-dom", "^7.14.0", "page addresses"], ["axios", "^1.15.0", "HTTP requests"], ["recharts", "^3.8.1", "charts"], ["vite", "^8.0.4", "dev server and build tool"], ["tailwindcss", "^3.4.19", "styling"]],
+  fns: [["npm run dev", "local dev server (port 5173)"], ["npm run build", "production files in dist/"], ["npm run lint", "ESLint"]],
+  uses: [], usedBy: [] },
+
+fe_config: { t: "vite · tailwind · eslint", s: "website settings", path: "frontend/vite.config.js · tailwind.config.js · postcss.config.js · eslint.config.js · src/index.css", z: "web", st: "live",
+  plain: "Settings for the website's build tools: Vite (builds the site), Tailwind (styles), PostCSS (CSS processing) and ESLint (code checks).",
+  vars: [["vite plugins", "[react()]", "JSX support"], ["tailwind colors", "cream #F7F6F2", "page background"], ["font", "Inter", "loaded in index.css"], ["eslint no-unused-vars", "ignores names starting with A–Z or _", "custom rule"]],
+  uses: [], usedBy: [] },
+
+ci: { t: "ci.yml", s: "the release robot", path: ".github/workflows/ci.yml", z: "ci", st: "auto",
+  plain: "Instructions for GitHub Actions. On every push to main: run the tests, build and upload the server image, deploy it on Render, then check the live site.",
+  fns: [["job test", "Python 3.11 · pip install -r requirements.txt · python -m pytest"], ["job build-and-push (needs test)", "docker build with GIT_SHA → push usmangoat/telco-fastapi:latest; outputs the image digest"], ["job deploy (needs build-and-push)", "POST to the Render deploy hook with imgURL=…@digest, then run scripts/smoke_test.py"]],
+  vars: [["DOCKERHUB_USERNAME · DOCKERHUB_TOKEN", "secrets", "upload images"], ["RENDER_DEPLOY_HOOK_URL", "secret", "tells Render to deploy; step is skipped if missing"], ["concurrency group", "render-production", "a newer push cancels an older deploy"]],
+  lang: "YAML · deploy job (trimmed)",
+  code: `deploy:
+  needs: build-and-push
+  concurrency:
+    group: render-production
+    cancel-in-progress: true
+  steps:
+    - name: Trigger Render deploy of this exact image
+      env:
+        RENDER_DEPLOY_HOOK_URL: \${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        IMAGE: docker.io/usmangoat/telco-fastapi@\${{ needs.build-and-push.outputs.digest }}
+      run: curl -fsS -X POST "\${RENDER_DEPLOY_HOOK_URL}&imgURL=<url-encoded IMAGE>"
+    - name: Smoke test production
+      run: python3 scripts/smoke_test.py https://telco-fastapi.onrender.com \${{ github.sha }}`,
+  uses: ["pytest_ini", "dockerfile", "smoke"], usedBy: [] },
+
+dockerfile: { t: "dockerfile", s: "how the server is packed", path: "dockerfile", z: "host", st: "live",
+  plain: "The recipe for the server's Docker image: start from Python 3.11, install the libraries, copy in the code and the model, and start the API.",
+  lang: "Dockerfile",
+  code: `FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --upgrade pip \\
+    && pip install -r requirements.txt \\
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+COPY . .
+COPY model/ /app/model/
+ENV PYTHONUNBUFFERED=1
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+ENV PYTHONPATH=/app/src
+EXPOSE 8000
+CMD ["python", "-m", "uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]`,
+  notes: ["requirements.txt is copied first so Docker can reuse the slow install step when only code changes.", ".dockerignore keeps data/, .venv/ and tests/ out of the image."],
+  uses: ["requirements", "main_py", "model_pkl"], usedBy: ["ci"] },
+
+requirements: { t: "requirements.txt", s: "124 pinned packages", path: "requirements.txt", z: "host", st: "live",
+  plain: "Every Python library the project needs, each pinned to an exact version, so the laptop, CI and the server all run the same code.",
+  vars: [["xgboost", "3.0.3", "the model"], ["scikit-learn", "1.6.1", "matches the saved model"], ["pandas · numpy", "2.1.4 · 1.26.4", "data tables"], ["fastapi · uvicorn · pydantic", "0.115.0 · 0.30.5 · 2.8.2", "the API"], ["mlflow", "3.1.4", "model saving/loading"], ["great_expectations", "1.5.8", "data checks"], ["optuna", "4.4.0", "tuning"], ["pytest", "8.3.2", "tests"]],
+  uses: [], usedBy: ["dockerfile"] },
+
+pytest_ini: { t: "pytest.ini", s: "test settings", path: "pytest.ini", z: "ci", st: "auto",
+  plain: "Tells pytest where the tests are and lets them import the project's code.",
+  lang: "INI",
+  code: `[pytest]
+testpaths = tests
+pythonpath = .
+addopts = -q
+filterwarnings =
+    ignore::DeprecationWarning
+    ignore::FutureWarning
+    ignore::UserWarning`,
+  uses: [], usedBy: ["ci"] },
+
+ignores: { t: "Ignore files", s: ".gitignore · .dockerignore", path: ".gitignore · .dockerignore", z: "host", st: "live",
+  plain: "Lists of things to leave out: .gitignore keeps big or private files out of GitHub; .dockerignore keeps them out of the server image.",
+  vars: [[".gitignore", "CLAUDE.md, .venv/, __pycache__/, mlruns/, artifacts/, data/raw/, data/processed/", "not stored on GitHub"], [".dockerignore", "data/, notebooks/, .venv/, tests/", "not copied into the image"]],
+  uses: [], usedBy: [] },
+
+conftest: { t: "conftest.py", s: "shared test setup", path: "tests/conftest.py", z: "ci", st: "auto",
+  plain: "Setup that every test shares: where the model is, and the dataset loaded once so the tests stay fast.",
+  fns: [["raw_df", "the CSV as a DataFrame (loaded once per test run)"], ["features_df", "training features built exactly like run_pipeline.py"], ["feature_cols", "the 30 names from model/feature_columns.txt"], ["raw_customers", "7,043 customer dicts, as the API would receive them"]],
+  lang: "Python (trimmed)",
+  code: `# Must be set before inference.py is imported: it loads the model at import time
+os.environ.setdefault("MODEL_DIR", str(ROOT / "model"))
+
+@pytest.fixture(scope="session")
+def features_df(raw_df):
+    df = build_features(preprocess_data(raw_df.copy(), target_col=TARGET), target_col=TARGET)
+    for c in df.select_dtypes(include=["bool"]).columns:
+        df[c] = df[c].astype(int)
+    return df`,
+  uses: ["csv", "load_data", "preprocess", "build"], usedBy: ["test_data", "test_modeling", "test_serving", "test_api"] },
+
+test_data: { t: "test_data_features.py", s: "12 tests · data", path: "tests/test_data_features.py", z: "ci", st: "auto",
+  plain: "Checks the training data steps: loading, the 62 validation checks, cleaning, and that the 30 features are complete and correct.",
+  fns: [["test_raw_data_shape", "7,043 × 21"], ["test_raw_data_passes_validation", "all 62 checks pass on real data"], ["test_validation_rejects_bad_data (×4)", "negative tenure, unknown contract, duplicate ID, missing gender are caught"], ["test_features_match_saved_schema", "same 30 columns as model/feature_columns.txt"], ["test_binary_and_dummy_features_are_0_1", "encoded columns only contain 0 and 1"], ["test_churn_rate_is_plausible", "between 25% and 29%"]],
+  uses: ["conftest", "validate", "build"], usedBy: [] },
+
+test_modeling: { t: "test_modeling.py", s: "3 tests · model", path: "tests/test_modeling.py", z: "ci", st: "auto",
+  plain: "Checks the model side: a quick model still learns real patterns, and the deployed model still scores what the website claims.",
+  fns: [["test_target_is_binary_with_no_nans", "Churn is only 0/1"], ["test_quick_xgboost_learns_signal", "a 100-tree model reaches AUC > 0.80 and recall > 0.70"], ["test_deployed_model_matches_reported_metrics", "model/ still scores recall and AUC within ±0.02 of model_metrics.json"]],
+  uses: ["conftest", "model_pkl", "metrics"], usedBy: [] },
+
+test_serving: { t: "test_serving.py", s: "31 tests · inference", path: "tests/test_serving.py", z: "ci", st: "auto",
+  plain: "Checks the prediction engine: it must prepare every customer exactly like training did, handle messy input, and refuse impossible input.",
+  fns: [["test_serving_features_match_training", "all 7,043 customers: the 30 numbers from serving equal the ones from training"], ["test_predict_probability_matches_training_encoding", "probabilities match the model on training features"], ["test_contract_type_changes_prediction", "month-to-month > one year > two year"], ["test_messy_values_give_same_prediction_as_clean (×9)", "\"two year \", \"fiber optic\", \"yes\"… give the same answer"], ["test_invalid_values_are_rejected (×7)", "typos, blanks, \"abc\", negatives, SeniorCitizen 2"], ["test_impossible_combinations_are_rejected (×4)", "e.g. no internet but Online Security = Yes"], ["test_every_real_customer_is_accepted", "validation never rejects a genuine record"]],
+  uses: ["conftest", "inference"], usedBy: [] },
+
+test_api: { t: "test_api.py", s: "13 tests · API", path: "tests/test_api.py", z: "ci", st: "auto",
+  plain: "Checks every server address the website uses, including bad input and awkward CSV files.",
+  fns: [["test_predict_returns_valid_response", "prediction, probability 0–100, risk level"], ["test_predict_invalid_value_returns_422", "\"Two Yr\" → 422 with the reason"], ["test_predict_batch_flags_bad_rows_and_scores_the_rest", "2 bad rows reported, 2 good rows scored, JSON stays valid"], ["test_predict_batch_missing_column_returns_422", "whole file rejected"], ["test_predict_batch_handles_excel_bom_and_padded_headers", "Excel-style CSVs work"], ["test_version_reports_build_commit", "/version returns GIT_SHA"]],
+  uses: ["conftest", "main_py"], usedBy: [] },
+
+readme: { t: "README.md", s: "project write-up", path: "README.md", z: "host", st: "doc",
+  plain: "The project's front page on GitHub: the business problem, results, how it works, and how to run it. Every number in it was checked against the code and data.",
+  uses: [], usedBy: [] },
+
+techwf: { t: "technical_workflow.txt", s: "plain-English guide", path: "technical_workflow.txt", z: "host", st: "doc",
+  plain: "A long beginner-friendly guide (17 sections) explaining every part of the project with analogies.",
+  uses: [], usedBy: [] },
+
+posthog: { t: "docker-compose.yml", s: "posthog/ · broken", path: "posthog/docker-compose.yml", z: "host", st: "broken",
+  plain: "Contains only the text \"404: Not Found\": a download that failed. Nothing uses it and it's safe to delete.",
+  uses: [], usedBy: [] },
+};
+
+/* keep both directions of every relationship in sync */
+for (const [id, f] of Object.entries(FILES)) {
+  for (const u of f.uses) if (!FILES[u].usedBy.includes(id)) FILES[u].usedBy.push(id);
+  for (const u of f.usedBy) if (!FILES[u].uses.includes(id)) FILES[u].uses.push(id);
+}
+
+/* layout for the Project files tab: folder columns stacked top to bottom, files inside */
+const FILE_COLS = [
+  [["data/", "data", ["csv"]], ["project root", "data", ["eda"]], ["scripts/", "data", ["run_pipeline", "prepare", "smoke"]], ["project root · docs", "host", ["readme", "techwf"]], ["posthog/", "host", ["posthog"]]],
+  [["src/data/", "data", ["load_data", "preprocess"]], ["src/utils/", "data", ["validate", "utils"]], ["src/features/", "data", ["build"]], ["src/models/", "model", ["train", "tune", "evaluate"]]],
+  [["not in git", "model", ["mlruns", "artifacts"]], ["model/", "model", ["model_pkl", "feature_cols", "metrics"]], ["src/serving/", "api", ["inference"]], ["src/app/", "api", ["main_py", "app_py"]]],
+  [["frontend/", "web", ["index_html", "main_jsx", "app_jsx", "navbar"]], ["frontend/src/", "web", ["api_js"]], ["frontend/ · config", "web", ["package_json", "fe_config"]]],
+  [["frontend/src/pages/", "web", ["predict_jsx", "bulk_jsx", "history_jsx", "insights_jsx", "dataset_jsx"]], [".github/workflows/", "ci", ["ci"]], ["project root · build", "host", ["dockerfile", "requirements", "pytest_ini", "ignores"]]],
+];
+const TESTS_ROW = ["tests/", "ci", ["conftest", "test_data", "test_modeling", "test_serving", "test_api"]];
+
+const FILE_EDGES = [
+  { f: "csv", t: "load_data", l: "read_csv()", d: "load_data() opens the CSV with pandas.read_csv: a table of 7,043 rows × 21 columns." },
+  { f: "csv", t: "eda", l: "explored", d: "The notebook reads the same CSV to explore it and compare models." },
+  { f: "load_data", t: "run_pipeline", l: "① table 7,043 × 21", name: "Step 1: load_data(path) returns the table", d: "This is where the data enters the pipeline, and it only flows one way. run_pipeline.py calls load_data() with just the file path from --input (a piece of text, not data). load_data reads the CSV and returns a table of 7,043 rows × 21 columns to run_pipeline.py. Nothing is sent back to load_data." },
+  { f: "run_pipeline", t: "validate", l: "② pass / fail", both: true, name: "Step 2: validate_telco_data(df)", d: "Two-way: run_pipeline.py sends the raw table in; validate_telco_data() runs 62 checks and sends back only a verdict, (True, []) or (False, [failed checks]). On False, run_pipeline.py logs the failures to MLflow and stops." },
+  { f: "run_pipeline", t: "preprocess", l: "③ clean table", both: true, name: "Step 3: preprocess_data(df)", d: "Two-way: run_pipeline.py sends the table in; preprocess_data() drops customerID, turns Churn into 1/0 and TotalCharges into a number, and hands back a clean table of 7,043 × 20." },
+  { f: "run_pipeline", t: "build", l: "④ 30 features", both: true, name: "Step 4: build_features(df)", d: "Two-way: run_pipeline.py sends the clean table in; build_features() turns the 19 customer details into 30 numeric features and hands back 7,043 × 31 (30 features + Churn)." },
+  { f: "run_pipeline", t: "mlruns", l: "⑥ model + scores", name: "Step 6: log to MLflow", d: "Parameters, metrics (recall 0.821…) and the trained model are recorded in MLflow." },
+  { f: "run_pipeline", t: "artifacts", l: "⑤ column list", name: "Step 5: save the column list", d: "The 30 feature names, in order, are saved to artifacts/feature_columns.json." },
+  { f: "mlruns", t: "model_pkl", fs: "right", ts: "right", l: "promote (copy)", d: "When a run is good enough, its model files are copied by hand into model/ and committed. That is what production uses." },
+  { f: "model_pkl", t: "inference", fs: "left", ts: "left", tt: .3, l: "loaded at start", d: "inference.py loads the model once with MLflow when the server starts (MODEL_DIR = /app/model in Docker)." },
+  { f: "feature_cols", t: "inference", fs: "left", ts: "left", tt: .7, l: "FEATURE_COLS", d: "The 30 names are read at startup and used to put each request's numbers in training order." },
+  { f: "main_py", t: "inference", l: "predict()", both: true, name: "main.py calls predict()", d: "Two-way: for every /predict and /predict-batch request, main.py sends the customer's 19 values to predict() and gets back {prediction, probability, risk_level}, or an InvalidInputError it turns into HTTP 422. main.py also reads FEATURE_COLS and the loaded model from inference.py for /feature-importance." },
+  { f: "metrics", t: "main_py", fs: "right", ts: "right", l: "/model-stats", d: "GET /model-stats reads model/model_metrics.json on each request and returns it." },
+  { f: "api_js", t: "main_py", l: "HTTP · JSON", ly: 22, both: true, d: "The website's requests travel over the internet to the API, and JSON answers come back (or 422/500 errors)." },
+  { f: "predict_jsx", t: "api_js", l: "predictSingle", both: true, name: "predictSingle()", d: "Two-way: the Predict page sends the 19 fields through predictSingle() (POST /predict) and gets back the prediction, probability and risk level, or an error message." },
+  { f: "bulk_jsx", t: "api_js", l: "predictBatch", both: true, name: "predictBatch()", d: "Two-way: Bulk Predict uploads the CSV through predictBatch() (POST /predict-batch) and gets back every row with its prediction or error reason." },
+  { f: "api_js", t: "insights_jsx", l: "scores", name: "Insights receives the model's scores", d: "When Insights opens it calls getFeatureImportance() and getModelStats(). It sends nothing; it only receives the 30 feature importances and the model's scores, so the data flows into Insights." },
+  { f: "predict_jsx", t: "history_jsx", fs: "right", ts: "right", l: "localStorage", pos: "right", d: "Predict saves each result under the key \"churn_history\" in the browser; History reads the same key." },
+  { f: "index_html", t: "main_jsx", kind: "run", l: "", name: "index.html loads main.jsx", d: "index.html loads /src/main.jsx as the website's starting script." },
+  { f: "main_jsx", t: "app_jsx", kind: "run", l: "", name: "main.jsx renders <App/>", d: "main.jsx draws App into the #root box." },
+  { f: "app_jsx", t: "navbar", kind: "run", l: "", name: "App shows the menu", d: "App shows the Navbar on every page." },
+  { f: "app_jsx", t: "predict_jsx", kind: "run", l: "5 routes", name: "App shows one of the 5 pages", d: "App picks the page for each address: / Predict, /bulk, /history, /insights, /dataset." },
+  { f: "ci", t: "dockerfile", kind: "run", l: "", name: "CI builds the image from the dockerfile", d: "Job build-and-push builds the image from the dockerfile (after the tests pass)." },
+  { f: "ci", t: "pytest_ini", kind: "run", fs: "right", ts: "right", l: "runs pytest", name: "CI runs python -m pytest", d: "Job test runs pytest, which reads pytest.ini to find the tests/ folder." },
+  { f: "ci", t: "smoke", kind: "run", l: "", name: "CI runs the smoke test after deploy", d: "Job deploy runs scripts/smoke_test.py against the live API once Render reports the new commit." },
+  { f: "requirements", t: "dockerfile", l: "", name: "The dockerfile installs requirements.txt", d: "The image installs every pinned package from requirements.txt." },
+  { f: "pytest_ini", t: "conftest", kind: "run", ts: "top", l: "", name: "pytest runs the 59 tests", d: "pytest reads pytest.ini, loads the shared setup in conftest.py, then runs every tests/test_*.py file: 12 + 3 + 31 + 13 = 59 tests. CI does this on every push before anything is built." },
+  { f: "test_data", t: "validate", kind: "run", l: "", name: "test_data_features.py tests validate_data.py", d: "Checks that clean data passes all 62 checks and that negative tenure, an unknown contract, a duplicate ID and a missing gender are each caught." },
+  { f: "test_data", t: "build", kind: "run", l: "", name: "test_data_features.py tests build_features.py", d: "Checks the 30 features: same columns as model/feature_columns.txt, no gaps, every encoded column only 0 or 1." },
+  { f: "test_modeling", t: "model_pkl", kind: "run", l: "", name: "test_modeling.py tests the model", d: "Checks the model in model/ still scores the recall and AUC published in model_metrics.json (within ±0.02)." },
+  { f: "test_serving", t: "inference", kind: "run", l: "", name: "test_serving.py tests inference.py", d: "31 tests: all 7,043 customers must be encoded exactly as in training, messy values must give the same answer as clean ones, and invalid or impossible input must be refused." },
+  { f: "test_api", t: "main_py", kind: "run", l: "", name: "test_api.py tests main.py", d: "13 tests: every endpoint, 422 for bad input, and awkward CSV files (missing columns, blank cells, Excel BOM)." },
+  { f: "smoke", t: "main_py", kind: "run", l: "", name: "smoke_test.py checks the live API", d: "After each deploy, smoke_test.py calls the live server built from main.py: health, /version, three contract types, a typo (must get 422), model stats and feature importance." },
+  { f: "dockerfile", t: "main_py", kind: "run", l: "", name: "The container starts main.py", d: "The container starts the API with: python -m uvicorn src.app.main:app --port 8000. It also copies model/ to /app/model." },
+];
+
+/* ====================================================================== VIEWS */
+const SAMPLE_JSON = `{
+  "gender": "Male", "SeniorCitizen": 0,
+  "Partner": "Yes", "Dependents": "No",
+  "tenure": 5, "PhoneService": "Yes",
+  "MultipleLines": "No",
+  "InternetService": "Fiber optic",
+  "OnlineSecurity": "No", "OnlineBackup": "Yes",
+  "DeviceProtection": "No", "TechSupport": "No",
+  "StreamingTV": "Yes", "StreamingMovies": "Yes",
+  "Contract": "Month-to-month",
+  "PaperlessBilling": "Yes",
+  "PaymentMethod": "Electronic check",
+  "MonthlyCharges": 70.35, "TotalCharges": 350.75
+}`;
+
+const VIEWS = [
+/* ---------------------------------------------------------------- 1 */
+{
+  id: "start", tab: "Start here", arrows: "Arrows show where the data goes.",
+  title: "Two jobs: learning and predicting",
+  sub: "Every machine learning project does two different things. Training learns from the past, once. Inference uses what was learned, every time someone asks for a prediction.",
+  vb: [1180, 520],
+  zones: [
+    { x: 10, y: 10, w: 1160, h: 210, z: "data", l: "1 · Training (learning)", note: "Done once, on the laptop. Re-done only when we want a better model." },
+    { x: 10, y: 250, w: 1160, h: 260, z: "api", l: "2 · Inference (predicting)", note: "Done every time someone clicks Predict on the website." },
+  ],
+  tour: ["past", "learn", "saved", "newc", "encode", "usemodel", "answer"],
+  nodes: [
+    { id: "past", x: 40, y: 100, w: 240, z: "data", t: "Past customers", s: "7,043 rows, answer known", file: "csv",
+      plain: "A table of real customers from the past. For each one we know their details AND whether they left. These are the examples the model learns from.",
+      nums: "1,869 of 7,043 customers left (26.5%)" },
+    { id: "learn", x: 340, y: 100, w: 240, z: "data", t: "Training", s: "find the patterns", file: "run_pipeline",
+      plain: "The computer studies all those examples and works out which details go together with leaving. For example, monthly contracts and fiber internet show up a lot among people who left.",
+      what: "Details: see tab 3, Training." },
+    { id: "saved", x: 640, y: 100, w: 240, z: "model", t: "Trained model", s: "saved as a file", file: "model_pkl",
+      plain: "What was learned is saved into a file. That file IS the model. Training is finished; from now on we only use it.",
+      nums: "Tested on 1,409 customers it never saw: it catches 82.1% of the ones who leave" },
+    { id: "newc", x: 40, y: 360, w: 240, z: "web", t: "A new customer", s: "19 details, no answer", file: "predict_jsx",
+      plain: "Someone types a customer's details into the website. We don't know yet whether this customer will leave. That's the question.",
+      ex: "Contract: Month-to-month\nInternet: Fiber optic\nTenure: 5 months\nMonthly charges: $70.35\n…and 15 more details" },
+    { id: "encode", x: 340, y: 360, w: 240, z: "api", t: "Same preparation", s: "19 details → 30 numbers", file: "inference",
+      plain: "The model only understands numbers, so the details are turned into 30 numbers in exactly the same way as in training. If this step differed from training, predictions would come out wrong (this project had exactly that bug, now fixed and tested).",
+      ex: "\"Fiber optic\"    → InternetService_Fiber optic = 1\n\"Month-to-month\" → Contract_One year = 0,\n                   Contract_Two year = 0\ntenure 5         → tenure = 5" },
+    { id: "usemodel", x: 640, y: 360, w: 240, z: "model", t: "Trained model", s: "the same saved file", file: "model_pkl",
+      plain: "The same model file from training receives the 30 numbers and answers with a probability: how likely this customer is to leave.",
+      ex: "probability of leaving = 0.78" },
+    { id: "answer", x: 920, y: 360, w: 230, z: "web", t: "The answer", s: "78% · High risk", file: "predict_jsx",
+      plain: "The website shows the result. 0.35 or more counts as \"likely to churn\", and the risk level colours the gauge.",
+      ex: "78.0%  ·  High  ·  Likely to churn" },
+  ],
+  edges: [
+    { f: "past", t: "learn", l: "examples", ly: -44 },
+    { f: "learn", t: "saved", l: "patterns saved", ly: -44 },
+    { f: "saved", t: "usemodel", l: "same file reused", pos: "right" },
+    { f: "newc", t: "encode", l: "19 details", ly: -44 },
+    { f: "encode", t: "usemodel", l: "30 numbers", ly: -44 },
+    { f: "usemodel", t: "answer", l: "probability", ly: -44 },
+  ],
+},
+/* ---------------------------------------------------------------- 2 */
+{
+  id: "overview", tab: "Where it runs", arrows: "Arrows show what moves where: code, images, web pages and requests. ⇄ = a request goes and an answer comes back.",
+  title: "Where everything runs",
+  sub: "The project lives in a few places on the internet. Code goes from the laptop to GitHub, and from there to the two places that serve users.",
+  vb: [1180, 520],
+  tour: ["dev", "github", "actions", "dockerhub", "render", "vercel", "browser"],
+  nodes: [
+    { id: "dev", x: 30, y: 60, w: 220, z: "host", t: "Laptop", s: "write · train · test",
+      plain: "Where the code is written and the model is trained. Nothing here is public until it is pushed to GitHub.",
+      path: "Customer churn - Senior Proj/", sends: "Code changes to GitHub (git push)" },
+    { id: "github", x: 330, y: 60, w: 220, z: "ci", t: "GitHub", s: "the code's home",
+      plain: "Stores the code online. Every time new code arrives on the main branch, two things start automatically: the release robot and a website rebuild.",
+      path: "github.com/Muhammad-Usman-DS/Customer-churn---Senior-Proj", nums: "model/ is stored here; mlruns/ and .venv/ are not" },
+    { id: "actions", x: 630, y: 60, w: 250, z: "ci", t: "GitHub Actions", s: "the release robot", file: "ci",
+      plain: "A robot that runs on every push: it tests the code, packs the server into a Docker image, tells Render to use it, and then checks the live site.",
+      nums: "About 6–10 minutes. See tab 6, Release." },
+    { id: "dockerhub", x: 950, y: 60, w: 210, z: "host", t: "Docker Hub", s: "image storage", file: "dockerfile",
+      plain: "A shelf for packed servers (Docker images). Each image contains Python, every library, the code and the model, so it runs the same anywhere.",
+      path: "hub.docker.com/r/usmangoat/telco-fastapi" },
+    { id: "render", x: 950, y: 300, w: 210, z: "api", t: "Render", s: "runs the server", file: "main_py",
+      plain: "Runs the server (the API) on the internet. The website sends it customer details and gets predictions back.",
+      path: "https://telco-fastapi.onrender.com", nums: "Free plan: sleeps after ~15 min without visitors; the first request after that takes about a minute" },
+    { id: "vercel", x: 330, y: 300, w: 220, z: "web", t: "Vercel", s: "hosts the website", file: "package_json",
+      plain: "Builds the React website and serves its files to anyone who opens the link. It has no model; it only shows pages.",
+      path: "https://customer-churn-senior-proj.vercel.app", nums: "Knows the server's address from the setting VITE_API_URL" },
+    { id: "browser", x: 630, y: 420, w: 250, z: "web", t: "Your browser", s: "the app you use", file: "app_jsx",
+      plain: "Where the website actually runs: Chrome, Safari… It shows the pages, sends questions to the server and draws the answers.",
+      nums: "5 pages: Predict, Bulk Predict, History, Insights, Dataset" },
+  ],
+  edges: [
+    { f: "dev", t: "github", l: "git push" },
+    { f: "github", t: "actions", l: "new code" },
+    { f: "actions", t: "dockerhub", l: "image" },
+    { f: "dockerhub", t: "render", fs: "bottom", ts: "top", l: "image", pos: "right" },
+    { f: "actions", t: "render", fs: "bottom", ts: "left", tt: .3, l: "deploy + check", lx: -10, ly: -6 },
+    { f: "github", t: "vercel", fs: "bottom", ts: "top", l: "rebuild site", pos: "right" },
+    { f: "vercel", t: "browser", fs: "bottom", ts: "left", l: "web pages", lx: -14, ly: 8 },
+    { f: "browser", t: "render", ts: "left", tt: .75, l: "questions ⇄ answers", both: true, ly: 10 },
+  ],
+},
+/* ---------------------------------------------------------------- 3 */
+{
+  id: "training", tab: "Training", arrows: "Arrows show the next step and what is handed on. The data check only inspects the table; the table itself goes on to Clean. Red dashed = what happens if a check fails.",
+  title: "Training, step by step",
+  sub: "What happens when scripts/run_pipeline.py runs. The left column is the main path, top to bottom; the right column is what each step saves on the side.",
+  vb: [920, 880],
+  tour: ["csv", "load", "validate", "preprocess", "features", "split", "train", "evaluate", "mlflow", "modeldir"],
+  nodes: [
+    { id: "csv", x: 40, y: 20, w: 270, z: "data", t: "Raw data file", s: "Telco CSV", file: "csv",
+      plain: "The starting point: a spreadsheet of 7,043 customers with 21 columns, including whether they left (Churn).",
+      nums: "7,043 rows × 21 columns · 26.5% left · 11 blank TotalCharges" },
+    { id: "load", x: 40, y: 115, w: 270, z: "data", t: "Load", s: "load_data()", file: "load_data",
+      plain: "Opens the file and turns it into a table Python can work with (a pandas DataFrame)." },
+    { id: "validate", x: 40, y: 210, w: 270, z: "data", t: "Check the data", s: "62 checks", file: "validate",
+      plain: "Before learning anything, check the data is sane: all columns present, no unknown values, no negative months. Bad data would teach the model bad patterns, so if any check fails, training stops.",
+      nums: "e.g. tenure 0–120 · MonthlyCharges 0–200 · Contract is one of 3 known values" },
+    { id: "preprocess", x: 40, y: 305, w: 270, z: "data", t: "Clean", s: "preprocess_data()", file: "preprocess",
+      plain: "Small fixes: remove the customer ID (it can't predict anything), turn Churn's Yes/No into 1/0, and make TotalCharges a number.",
+      nums: "21 → 20 columns · 11 blank TotalCharges become 0 (brand-new customers)" },
+    { id: "features", x: 40, y: 400, w: 270, z: "data", t: "Turn into numbers", s: "build_features()", file: "build",
+      plain: "Models only understand numbers. Yes/No becomes 1/0. A choice with 3+ options, like Contract, becomes separate yes/no columns (\"one-hot encoding\").",
+      ex: "Contract = \"Two year\"\n→ Contract_One year = 0\n→ Contract_Two year = 1\n(Month-to-month = both 0)", nums: "19 details → 30 numbers (features)" },
+    { id: "split", x: 40, y: 495, w: 270, z: "data", t: "Split 80 / 20", s: "train vs test", file: "run_pipeline",
+      plain: "Hide 20% of customers from the model. Later we test on them, like an exam with questions the student hasn't seen. That keeps the scores honest.",
+      nums: "5,634 to learn from · 1,409 for the exam (stratified: same churn rate in both)" },
+    { id: "train", x: 40, y: 590, w: 270, z: "model", t: "Train XGBoost", s: "301 decision trees", file: "run_pipeline",
+      plain: "XGBoost builds many small decision trees one after another; each new tree fixes the mistakes of the ones before. Missing a leaver counts 2.77× as much as a false alarm.",
+      nums: "301 trees · depth 7 · learning rate 0.034 · scale_pos_weight 2.77" },
+    { id: "evaluate", x: 40, y: 685, w: 270, z: "model", t: "Take the exam", s: "threshold 0.35", file: "run_pipeline",
+      plain: "Run the model on the 1,409 hidden customers and see how it did. Anyone scoring 0.35 or more is flagged as likely to leave.",
+      nums: "Caught 307 of 374 leavers (recall 82.1%) · 49% of flags were right (precision) · AUC 83.7%" },
+    { id: "stop", x: 600, y: 210, w: 290, z: "data", t: "Stop!", s: "list of failed checks", file: "validate",
+      plain: "If the data check fails, nothing is trained. The failed checks are saved so you can see exactly what was wrong." },
+    { id: "processed", x: 600, y: 305, w: 290, z: "data", t: "Cleaned copy", s: "data/processed/", file: "run_pipeline",
+      plain: "A saved copy of the cleaned table, handy for debugging. The live app doesn't use it." },
+    { id: "artifacts", x: 600, y: 400, w: 290, z: "model", t: "Column list", s: "feature_columns.json", file: "artifacts",
+      plain: "The names of the 30 columns in order. The server needs this so it lines up its numbers exactly like training did." },
+    { id: "mlflow", x: 600, y: 637, w: 290, z: "model", t: "MLflow", s: "experiment diary", file: "mlruns",
+      plain: "A diary that records every training run automatically: settings, scores and the model. Useful for comparing runs." },
+    { id: "modeldir", x: 600, y: 790, w: 290, z: "model", t: "model/ folder", s: "what the live app uses", file: "model_pkl",
+      plain: "When a model is good enough, its files are copied here and committed. This folder ships inside the server, so this is the model users get.",
+      nums: "model_metrics.json in here = the numbers on the Insights page" },
+  ],
+  edges: [
+    { f: "csv", t: "load", l: "file", pos: "right" },
+    { f: "load", t: "validate", l: "table 7,043 × 21", pos: "right" },
+    { f: "validate", t: "preprocess", l: "all checks pass", pos: "right" },
+    { f: "preprocess", t: "features", l: "clean table", pos: "right" },
+    { f: "features", t: "split", l: "30 numbers + answer", pos: "right" },
+    { f: "split", t: "train", l: "5,634 customers", pos: "right" },
+    { f: "train", t: "evaluate", l: "model + 1,409 hidden", pos: "right" },
+    { f: "validate", t: "stop", l: "a check fails", kind: "fail" },
+    { f: "preprocess", t: "processed", l: "save copy" },
+    { f: "features", t: "artifacts", l: "column order" },
+    { f: "train", t: "mlflow", tt: .3, l: "model + settings" },
+    { f: "evaluate", t: "mlflow", tt: .75, l: "scores", ly: 18 },
+    { f: "mlflow", t: "modeldir", fs: "bottom", ts: "top", l: "copy + commit", pos: "right" },
+  ],
+},
+/* ---------------------------------------------------------------- 4 */
+{
+  id: "inference", tab: "Inference", arrows: "Arrows follow one request from the form to the answer. Red dashed = input that gets rejected.",
+  title: "Inference: one prediction, start to finish",
+  sub: "What happens in the second after you click Predict. Press Walk through to follow a real customer: 5 months in, fiber internet, monthly contract.",
+  vb: [1200, 760],
+  zones: [
+    { x: 10, y: 10, w: 380, h: 740, z: "web", l: "In your browser" },
+    { x: 420, y: 10, w: 770, h: 740, z: "api", l: "On the server (Render)" },
+  ],
+  tour: ["form", "apijs", "endpoint", "normalize", "transform", "model", "risk", "result", "history"],
+  nodes: [
+    { id: "form", x: 40, y: 60, w: 310, z: "web", t: "Predict form", s: "Predict.jsx", file: "predict_jsx",
+      plain: "You fill in 19 details about a customer. The form keeps things consistent: pick \"No\" internet and the internet extras are set automatically.",
+      ex: SAMPLE_JSON },
+    { id: "apijs", x: 40, y: 165, w: 310, z: "web", t: "Send to server", s: "api.js", file: "api_js",
+      plain: "The browser sends the 19 details to the server over the internet as JSON, a text format both sides understand.",
+      ex: "POST https://telco-fastapi.onrender.com/predict\n{ \"Contract\": \"Month-to-month\", … }" },
+    { id: "err", x: 40, y: 300, w: 310, z: "web", t: "Error message", s: "if the input is wrong", file: "api_js",
+      plain: "If the server says the input is wrong, the reason is shown under the form in plain words. Nothing is saved.",
+      ex: "Contract 'Two Yr' is not valid\n(expected one of: Month-to-month,\n One year, Two year)" },
+    { id: "result", x: 40, y: 560, w: 310, z: "web", t: "Show the result", s: "risk gauge", file: "predict_jsx",
+      plain: "The probability is drawn as a gauge with a coloured risk badge and a verdict.",
+      ex: "78.0%  ·  High  ·  Likely to churn\n\nSame customer, Two year contract:\n3.3%  ·  Low  ·  Not likely to churn" },
+    { id: "history", x: 40, y: 670, w: 310, z: "web", t: "Save to History", s: "in this browser", file: "history_jsx",
+      plain: "The result is saved inside your browser (localStorage), so the History page can list it later. Nothing is stored on the server.",
+      nums: "Up to 200 predictions" },
+    { id: "endpoint", x: 470, y: 165, w: 320, z: "api", t: "Receive request", s: "POST /predict · main.py", file: "main_py",
+      plain: "The server's front door for predictions. It first checks that all 19 details arrived and that numbers are numbers.",
+      sends: "The details to predict(); or HTTP 422 (\"your input is wrong\") / 500 (\"server problem\")" },
+    { id: "normalize", x: 470, y: 300, w: 320, z: "api", t: "Clean & check", s: "normalize_input()", file: "inference",
+      plain: "Tidies the values and refuses anything the model has never seen. \"two YEAR \" becomes \"Two year\". \"Two Yr\" is refused with a clear reason instead of a wrong guess.",
+      ex: "Contract \"Month-to-month\"    ✓ known value\nInternetService \"Fiber optic\" ✓\nOnlineSecurity \"No\"  ✓ fine with internet\ntenure 5             ✓ not negative" },
+    { id: "transform", x: 470, y: 410, w: 320, z: "api", t: "Turn into 30 numbers", s: "_serve_transform()", file: "inference",
+      plain: "Exactly the same preparation as in training: Yes/No → 1/0, one-hot columns, then lined up in training order. 12 of the 30 numbers are non-zero for this customer.",
+      ex: "gender 1 · Partner 1 · tenure 5\nPhoneService 1 · PaperlessBilling 1\nMonthlyCharges 70.35\nTotalCharges 350.75\nInternetService_Fiber optic 1\nOnlineBackup_Yes 1 · StreamingTV_Yes 1\nStreamingMovies_Yes 1\nPaymentMethod_Electronic check 1\nContract_One year 0 · Contract_Two year 0\n(the other 16 are 0)",
+      tested: "tests/test_serving.py checks all 7,043 customers match training exactly" },
+    { id: "model", x: 470, y: 520, w: 320, z: "model", t: "Ask the model", s: "predict_proba()", file: "inference",
+      plain: "The trained model looks at the 30 numbers and gives a probability of leaving.",
+      ex: "[stay 0.2201, leave 0.7799]" },
+    { id: "risk", x: 470, y: 630, w: 320, z: "api", t: "Decide & label", s: "threshold 0.35", file: "inference",
+      plain: "0.78 is above 0.35, so: \"Likely to churn\". 78% is also above 65%, so the risk is High.",
+      nums: "High ≥ 65% · Medium ≥ 35% · Low below 35%",
+      ex: "{\n  \"prediction\": \"Likely to churn\",\n  \"probability\": 78.0,\n  \"risk_level\": \"High\"\n}" },
+    { id: "cols", x: 900, y: 410, w: 260, z: "model", t: "Column list", s: "feature_columns.txt", file: "feature_cols",
+      plain: "The 30 column names in training order. Read once when the server starts." },
+    { id: "pkl", x: 900, y: 520, w: 260, z: "model", t: "Model file", s: "model.pkl", file: "model_pkl",
+      plain: "The trained model, loaded once when the server starts so each prediction is fast." },
+  ],
+  edges: [
+    { f: "form", t: "apijs", l: "19 details", pos: "right" },
+    { f: "apijs", t: "endpoint", l: "JSON" },
+    { f: "endpoint", t: "normalize", l: "19 values", pos: "right" },
+    { f: "normalize", t: "err", l: "422 + reason", kind: "fail" },
+    { f: "normalize", t: "transform", l: "clean values", pos: "right" },
+    { f: "transform", t: "model", l: "30 numbers", pos: "right" },
+    { f: "model", t: "risk", l: "0.7799", pos: "right" },
+    { f: "risk", t: "result", l: "78.0% · High", d: "The answer goes back the way the request came: from predict() to main.py, which sends it as JSON to api.js in the browser, which hands it to the Predict page. Those two hops are drawn once to keep the picture simple." },
+    { f: "result", t: "history", l: "saved", pos: "right" },
+    { f: "cols", t: "transform", l: "column order" },
+    { f: "pkl", t: "model", l: "at startup" },
+  ],
+},
+/* ---------------------------------------------------------------- 5 */
+{
+  id: "map", tab: "Who calls what", arrows: "⇄ = a request goes one way and the answer comes back. → = data read in one direction only.",
+  title: "Who calls what",
+  sub: "Each website page, the server address (endpoint) it calls, the code that answers, and the model files that code reads.",
+  vb: [1260, 700],
+  cols: [
+    { x: 20, l: "Website pages", z: "web" }, { x: 340, l: "Server addresses", z: "api" },
+    { x: 720, l: "Server code", z: "api" }, { x: 1030, l: "Model files", z: "model" },
+  ],
+  tour: [],
+  nodes: [
+    { id: "pPredict", x: 20, y: 50, w: 220, z: "web", t: "Predict", s: "Predict.jsx", file: "predict_jsx",
+      plain: "One customer at a time, with the risk gauge and What-If mode (re-predicts as you change things)." },
+    { id: "pBulk", x: 20, y: 160, w: 220, z: "web", t: "Bulk Predict", s: "BulkPredict.jsx", file: "bulk_jsx",
+      plain: "Upload a spreadsheet (CSV) of many customers and get all of them scored. Rows with mistakes are listed with the reason." },
+    { id: "pInsights", x: 20, y: 300, w: 220, z: "web", t: "Insights", s: "Insights.jsx", file: "insights_jsx",
+      plain: "Shows how good the model is and which details matter most to it. Loads its data from two server addresses when it opens." },
+    { id: "pHistory", x: 20, y: 430, w: 220, z: "web", t: "History", s: "no server needed", file: "history_jsx",
+      plain: "Lists your past predictions, which are saved in your own browser. It never calls the server." },
+    { id: "pDataset", x: 20, y: 520, w: 220, z: "web", t: "Dataset", s: "no server needed", file: "dataset_jsx",
+      plain: "Charts about the original data, written straight into the page. It never calls the server.", nums: "Churn by contract: 42.7% / 11.3% / 2.8%" },
+    { id: "pChecks", x: 20, y: 620, w: 220, z: "host", t: "Render & robot", s: "not a page", file: "smoke",
+      plain: "Render knocks on / to see if the server is alive. The release robot asks /version which code is running." },
+    { id: "ePredict", x: 340, y: 50, w: 270, z: "api", t: "POST /predict", s: "one customer", file: "main_py",
+      plain: "Send one customer's 19 details, get back the prediction, probability and risk level.",
+      ex: "→ {\"prediction\": \"Likely to churn\",\n   \"probability\": 78.0, \"risk_level\": \"High\"}" },
+    { id: "eBatch", x: 340, y: 160, w: 270, z: "api", t: "POST /predict-batch", s: "a whole CSV", file: "main_py",
+      plain: "Send a CSV file, get a prediction (or an error reason) for every row.", ex: "→ {\"predictions\": [...], \"total\": 5, \"failed\": 2}" },
+    { id: "eImp", x: 340, y: 270, w: 270, z: "api", t: "GET /feature-importance", s: "what matters most", file: "main_py",
+      plain: "Returns how much the model relies on each of the 30 numbers, biggest first.",
+      nums: "Top 3: Contract_Two year 0.398 · Contract_One year 0.166 · InternetService_Fiber optic 0.158" },
+    { id: "eStats", x: 340, y: 370, w: 270, z: "api", t: "GET /model-stats", s: "the model's scores", file: "main_py",
+      plain: "Returns the model's exam results from training.", nums: "recall 0.821 · precision 0.49 · f1 0.614 · roc_auc 0.837 · threshold 0.35" },
+    { id: "eHealth", x: 340, y: 620, w: 270, z: "api", t: "GET / and /version", s: "alive? which code?", file: "main_py",
+      plain: "/ answers {\"status\": \"ok\"} if the server is up. /version answers which commit it was built from." },
+    { id: "cPredict", x: 720, y: 105, w: 240, z: "api", t: "predict()", s: "inference.py", file: "inference",
+      plain: "The shared prediction code used by both predict addresses: clean & check → 30 numbers → model → label. See tab 4, Inference." },
+    { id: "cModel", x: 720, y: 270, w: 240, z: "model", t: "Loaded model", s: "kept in memory", file: "inference",
+      plain: "When the server starts, it loads the model and the column list once and keeps them in memory for every request." },
+    { id: "fCols", x: 1030, y: 50, w: 210, z: "model", t: "Column list", s: "feature_columns.txt", file: "feature_cols",
+      plain: "The 30 feature names in training order." },
+    { id: "fPkl", x: 1030, y: 270, w: 210, z: "model", t: "Model file", s: "model.pkl", file: "model_pkl",
+      plain: "The trained XGBoost model." },
+    { id: "fMetrics", x: 1030, y: 370, w: 210, z: "model", t: "Scores file", s: "model_metrics.json", file: "metrics",
+      plain: "The model's exam results, saved at training time. Update it whenever a new model is promoted." },
+  ],
+  edges: [
+    { f: "pPredict", t: "ePredict", l: "19 details", both: true, d: "Two-way: the page sends the 19 details and gets back the prediction, probability and risk level." },
+    { f: "pBulk", t: "eBatch", l: "CSV file", both: true, d: "Two-way: the page uploads the CSV and gets back every row with its prediction or error reason." },
+    { f: "eImp", t: "pInsights", tt: .3, l: "importances", ly: -4, d: "When Insights opens it asks for the importances; the data flows from the endpoint into the page." },
+    { f: "eStats", t: "pInsights", tt: .7, l: "scores", ly: 4, d: "When Insights opens it asks for the model's scores; the data flows from the endpoint into the page." },
+    { f: "pChecks", t: "eHealth", l: "are you up?", both: true, d: "Two-way: Render and the smoke test ask; the server answers {\"status\": \"ok\"} and its commit." },
+    { f: "ePredict", t: "cPredict", tt: .3, l: "1 customer", ly: -4, both: true, d: "Two-way: main.py sends one customer to predict() and gets the result back." },
+    { f: "eBatch", t: "cPredict", tt: .75, l: "row by row", ly: 4, both: true, d: "Two-way: each CSV row is sent to predict() and its result comes back." },
+    { f: "cPredict", t: "cModel", fs: "bottom", ts: "top", l: "30 numbers", pos: "right", both: true, d: "Two-way: predict() gives the model 30 numbers and gets back a probability." },
+    { f: "cModel", t: "eImp", l: "importances", d: "The endpoint reads feature_importances_ from the loaded model, so the data flows from the model to the endpoint." },
+    { f: "fMetrics", t: "eStats", l: "read on request", d: "The endpoint reads model_metrics.json on every request, so the data flows from the file to the endpoint." },
+    { f: "fCols", t: "cModel", fs: "bottom", ts: "right", tt: .3, l: "at start", lx: 10 },
+    { f: "fPkl", t: "cModel", ts: "right", tt: .75, l: "at start", ly: 20 },
+  ],
+},
+/* ---------------------------------------------------------------- 6 */
+{
+  id: "release", tab: "Release", arrows: "Arrows show the order of the steps. Red dashed = what happens when a step fails.",
+  title: "From git push to the live site",
+  sub: "After every push to main, a robot runs these steps in order. Each step only starts if the one before it passed, so broken code never reaches users.",
+  vb: [1000, 760],
+  tour: ["push", "test", "build", "deploy", "restart", "smoke", "live"],
+  nodes: [
+    { id: "push", x: 40, y: 20, w: 320, z: "ci", t: "git push", s: "the only manual step",
+      plain: "You push your code to GitHub. Everything below happens by itself.", path: "git push origin main" },
+    { id: "test", x: 40, y: 125, w: 320, z: "ci", t: "1 · Test", s: "59 automatic tests", file: "ci",
+      plain: "Runs all the tests: is the data handled right, do training and the server prepare data the same way for all 7,043 customers, does the model still score well, do all API addresses work?",
+      nums: "Python 3.11 (same as the server) · about 1–2 minutes" },
+    { id: "build", x: 40, y: 230, w: 320, z: "ci", t: "2 · Pack", s: "build Docker image", file: "dockerfile",
+      plain: "Packs the server (Python, libraries, code, model) into one Docker image and labels it with the commit it came from.", nums: "About 3 minutes" },
+    { id: "deploy", x: 40, y: 335, w: 320, z: "ci", t: "3 · Deploy", s: "tell Render", file: "ci",
+      plain: "Uses a secret link (the deploy hook) to tell Render: \"run this exact image now\".",
+      nums: "Names the image by its digest, a unique fingerprint, so it's always the tested one" },
+    { id: "restart", x: 40, y: 440, w: 320, z: "api", t: "Render switches", s: "old → new server",
+      plain: "Render starts the new server and switches visitors over once it's ready. Until then the old one keeps working.", nums: "About 1–3 minutes" },
+    { id: "smoke", x: 40, y: 545, w: 320, z: "ci", t: "4 · Check live site", s: "smoke test", file: "smoke",
+      plain: "Waits until the live server reports the new version, then tries it for real: does it answer, do predictions make sense, are typos refused?",
+      ex: "PASS  health check\nPASS  longer contracts lower churn risk\n      (78.0 → 60.4 → 3.3)\nPASS  invalid value rejected with 422\nPASS  model stats available\nPASS  feature importance available" },
+    { id: "live", x: 40, y: 650, w: 320, z: "ci", t: "Done ✓", s: "green check on GitHub",
+      plain: "The new version is live and has been checked on the real site." },
+    { id: "vercel2", x: 640, y: 20, w: 320, z: "web", t: "Website rebuild", s: "Vercel, at the same time", file: "package_json",
+      plain: "The same push also rebuilds the website on Vercel. This happens separately and doesn't wait for the tests." },
+    { id: "testfail", x: 640, y: 125, w: 320, z: "ci", t: "Stop: nothing changes", s: "red ✗ on GitHub", file: "ci",
+      plain: "If a test fails, nothing is packed or deployed. Users keep the previous working version. Fix it and push again." },
+    { id: "hub", x: 640, y: 230, w: 320, z: "host", t: "Docker Hub", s: "stores the image", file: "dockerfile",
+      plain: "Keeps every packed image so Render can download the exact one." },
+    { id: "smokefail", x: 640, y: 545, w: 320, z: "ci", t: "Alarm: run turns red", s: "Rollback in Render", file: "smoke",
+      plain: "If the live checks fail, GitHub shows a red ✗ right away. In Render you can go back to the previous version with one click." },
+  ],
+  edges: [
+    { f: "push", t: "test", l: "start", pos: "right" },
+    { f: "test", t: "build", l: "all 59 pass", pos: "right" },
+    { f: "build", t: "deploy", l: "image ready", pos: "right" },
+    { f: "deploy", t: "restart", l: "run this image", pos: "right" },
+    { f: "restart", t: "smoke", l: "new version up", pos: "right" },
+    { f: "smoke", t: "live", l: "5 checks pass", pos: "right" },
+    { f: "push", t: "vercel2", l: "same push" },
+    { f: "test", t: "testfail", l: "a test fails", kind: "fail" },
+    { f: "build", t: "hub", l: "upload image" },
+    { f: "hub", t: "restart", fs: "bottom", ts: "right", l: "Render downloads it", lx: 40, ly: 26 },
+    { f: "smoke", t: "smokefail", l: "a check fails", kind: "fail" },
+  ],
+},
+/* ---------------------------------------------------------------- 7 (built from FILES) */
+(() => {
+  const NH = 50, GAP = 22, HEAD = 42, PADB = 16, FGAP = 18, COLW = 270, STEP = 380, TOP = 40;
+  const nodes = [], zones = [];
+  let bottom = 0;
+  FILE_COLS.forEach((col, ci) => {
+    let y = TOP;
+    const x = 20 + ci * STEP;
+    for (const [label, z, ids] of col) {
+      const h = HEAD + ids.length * (NH + GAP) - GAP + PADB;
+      zones.push({ x, y, w: COLW, h, z, l: label, folder: true });
+      ids.forEach((id, i) => nodes.push({ id, x: x + 20, y: y + HEAD + i * (NH + GAP), w: COLW - 40, file: id }));
+      y += h + FGAP;
+    }
+    bottom = Math.max(bottom, y);
+  });
+  const [tl, tz, tids] = TESTS_ROW, ty = bottom + 12;
+  zones.push({ x: 20, y: ty, w: 20 + tids.length * 250, h: HEAD + NH + PADB, z: tz, l: tl, folder: true });
+  tids.forEach((id, i) => nodes.push({ id, x: 40 + i * 250, y: ty + HEAD, w: 230, file: id }));
+  for (const n of nodes) { const f = FILES[n.id]; n.t = f.t; n.s = f.s; n.z = f.z; n.plain = f.plain; }
+  const W = 20 + (FILE_COLS.length - 1) * STEP + COLW + 150;
+  return {
+    id: "files", tab: "Project files", files: true, nh: NH,
+    arrows: "Solid → = data moves this way. ⇄ = data goes in and a result comes back. Dotted = starts, runs or tests (no data). Red dashed card = broken file.",
+    title: "Every important file, and how data moves between them",
+    sub: "Boxes are folders, cards are files. Click a file to see what it does, then View code for its functions, variables and calculations. Click an arrow to see what flows along it. Dashed cards are files nothing uses.",
+    vb: [W, ty + HEAD + NH + PADB + 20], zones, nodes, edges: FILE_EDGES, tour: [],
+  };
+})(),
+];
+
+const TERMS = [
+  ["Training", "Teaching the model from past examples where the answer is already known. Done by scripts/run_pipeline.py."],
+  ["Inference", "Using the trained model to predict for someone new. Every click on Predict is one inference. It never changes the model."],
+  ["Model", "A file that holds what was learned in training. Here: model/model.pkl, an XGBoost model."],
+  ["Feature", "One number the model looks at. The 19 customer details become 30 features."],
+  ["One-hot encoding", "Turning a choice into yes/no columns. Contract becomes Contract_One year and Contract_Two year; Month-to-month means both are 0."],
+  ["Probability & threshold", "The model gives a number from 0 to 1. At 0.35 or more we say \"likely to churn\". A lower threshold catches more leavers but raises more false alarms."],
+  ["Recall · Precision", "Recall: of the customers who really left, how many we caught (82.1%). Precision: of the customers we flagged, how many really left (49%)."],
+  ["ROC-AUC", "How well the model ranks people: the chance a random leaver gets a higher score than a random stayer (83.7%). 50% is a coin flip."],
+  ["Train/test split", "Keeping 20% of customers hidden during training to test on later, like an exam with unseen questions."],
+  ["API · endpoint", "The API is how the website talks to the server. An endpoint is one address on it, like POST /predict."],
+  ["JSON", "The text format the browser and server use to send data, e.g. {\"tenure\": 5}."],
+  ["HTTP status codes", "200 = OK. 422 = your input is wrong (with the reason). 500 = something broke on the server."],
+  ["Train/serve skew", "When training and the server prepare data differently, so predictions are quietly wrong. Tests now check every customer on each push."],
+  ["Docker image", "A packed box with Python, all libraries, the code and the model, so the server runs the same everywhere."],
+  ["CI/CD", "Automation that tests, packs and deploys the code on every push. Here: GitHub Actions."],
+  ["Deploy hook · smoke test", "A deploy hook is a secret link that tells Render to deploy. A smoke test is a quick check of the live site right after."],
+  ["MLflow · Great Expectations", "MLflow records every training run. Great Expectations runs the 62 data checks before training."],
+  ["localStorage", "A small storage space inside your own browser. History lives there; the server never sees it."],
+];
+
+/* ====================================================================== ENGINE */
+const NS = "http://www.w3.org/2000/svg";
+const $ = (s) => document.querySelector(s);
+const el = (tag, attrs = {}, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const zvar = (z) => `var(${ZONES[z].v})`;
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+let view = VIEWS[0], selected = null, selEdge = null, tourIdx = -1, zoom = null, moved = false;
+const nh = () => view.nh || 60;
+
+function anchor(n, side, t = .5) {
+  const H = nh();
+  if (side === "left") return [n.x, n.y + H * t];
+  if (side === "right") return [n.x + n.w, n.y + H * t];
+  if (side === "top") return [n.x + n.w * t, n.y];
+  return [n.x + n.w * t, n.y + H];
+}
+const NORMAL = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
+function autoSides(a, b) {
+  if (b.x >= a.x + a.w) return ["right", "left"];
+  if (b.x + b.w <= a.x) return ["left", "right"];
+  return b.y > a.y ? ["bottom", "top"] : ["top", "bottom"];
+}
+
+const isFull = () => { const s = $("#stage"); return document.fullscreenElement === s || s.classList.contains("full"); };
+
+function applyZoom() {
+  const svg = $("#map"), [W, Hh] = view.vb;
+  if (zoom === null && isFull()) {
+    // Fit the whole diagram inside the full-screen area
+    const r = $("#scroller").getBoundingClientRect();
+    const s = Math.max(0.2, Math.min((r.width - 40) / W, (r.height - 40) / Hh));
+    svg.style.width = Math.round(W * s) + "px"; svg.style.maxWidth = "none"; svg.style.minWidth = "0";
+    $("#zVal").textContent = "Fit";
+  } else if (zoom === null) {
+    svg.style.width = "100%"; svg.style.maxWidth = W + "px"; svg.style.minWidth = Math.round(W * (view.files ? 0.72 : 0.82)) + "px";
+    $("#zVal").textContent = "Fit";
+  } else {
+    svg.style.width = Math.round(W * zoom) + "px"; svg.style.maxWidth = "none"; svg.style.minWidth = "0";
+    $("#zVal").textContent = Math.round(zoom * 100) + "%";
+  }
+}
+function currentScale() { return $("#map").getBoundingClientRect().width / view.vb[0]; }
+function zoomBy(f) { zoom = Math.min(2.2, Math.max(0.4, (zoom ?? currentScale()) * f)); applyZoom(); }
+
+function draw() {
+  const svg = $("#map");
+  svg.innerHTML = "";
+  svg.classList.toggle("files", !!view.files);
+  const [W, Hh] = view.vb, H = nh();
+  svg.setAttribute("viewBox", `0 0 ${W} ${Hh}`);
+  applyZoom();
+
+  const defs = el("defs", {}, svg);
+  for (const [id, cls] of [["ah", "arrow"], ["ah-hot", "arrow-hot"], ["ah-fail", "arrow-fail"]]) {
+    const m = el("marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+    el("path", { d: "M0,0 L10,5 L0,10 z", class: cls }, m);
+  }
+  for (const zb of view.zones || []) {
+    const g = el("g", { style: `--z:${zvar(zb.z)}` }, svg);
+    el("rect", { x: zb.x, y: zb.y, width: zb.w, height: zb.h, rx: zb.folder ? 10 : 14, class: "zone-bg" }, g);
+    el("text", { x: zb.x + (zb.folder ? 14 : 18), y: zb.y + (zb.folder ? 25 : 28), class: zb.folder ? "folder-label" : "zone-label" }, g).textContent = (zb.folder ? "▤ " : "") + zb.l;
+    if (zb.note) el("text", { x: zb.x + 18, y: zb.y + 50, class: "zone-note" }, g).textContent = zb.note;
+  }
+  for (const c of view.cols || []) el("text", { x: c.x, y: 26, class: "zone-label", style: `--z:${zvar(c.z)}` }, svg).textContent = c.l;
+
+  const byId = Object.fromEntries(view.nodes.map((n) => [n.id, n]));
+  const edgeLayer = el("g", {}, svg), nodeLayer = el("g", {}, svg), labelLayer = el("g", {}, svg);
+
+  view.edges.forEach((e, i) => {
+    const a = byId[e.f], b = byId[e.t];
+    let [fs, ts] = autoSides(a, b);
+    fs = e.fs || fs; ts = e.ts || ts;
+    const p0 = anchor(a, fs, e.ft ?? .5), p1 = anchor(b, ts, e.tt ?? .5);
+    const dist = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+    const d = Math.max(view.files ? 34 : 26, dist * 0.42);
+    const n0 = NORMAL[fs], n1 = NORMAL[ts];
+    const c0 = [p0[0] + n0[0] * d, p0[1] + n0[1] * d], c1 = [p1[0] + n1[0] * d, p1[1] + n1[1] * d];
+    const cls = "edge" + (e.kind === "fail" ? " fail" : e.kind === "run" ? " run" : "");
+    const dAttr = `M${p0} C${c0} ${c1} ${p1}`;
+    const g = el("g", { class: cls, "data-i": i, tabindex: 0, role: "button", "aria-label": `Flow from ${a.t} to ${b.t}: ${e.name || e.l || ""}` }, edgeLayer);
+    el("path", { d: dAttr, class: "hit" }, g);
+    const marker = e.kind === "fail" ? "ah-fail" : "ah";
+    const path = el("path", { d: dAttr, class: "line", "marker-end": `url(#${marker})` }, g);
+    if (e.both) path.setAttribute("marker-start", `url(#${marker})`);
+    hookEdge(g, i);
+    if (e.l) {
+      const lg = el("g", { class: cls, "data-i": i }, labelLayer);
+      const mx = (p0[0] + 3 * c0[0] + 3 * c1[0] + p1[0]) / 8, my = (p0[1] + 3 * c0[1] + 3 * c1[1] + p1[1]) / 8;
+      const right = e.pos === "right";
+      const pill = el("rect", { class: "pill", rx: 5 }, lg);
+      const t = el("text", { x: mx + (right ? 14 : 0) + (e.lx || 0), y: my + 4.5 + (e.ly || 0), "text-anchor": right ? "start" : "middle" }, lg);
+      t.textContent = e.l;
+      let bb = null;
+      try { bb = t.getBBox(); } catch (err) {}
+      if (!bb || !bb.width) { const w = e.l.length * 7.6, x = +t.getAttribute("x"); bb = { x: right ? x : x - w / 2, y: +t.getAttribute("y") - 12, width: w, height: 15 }; }
+      pill.setAttribute("x", bb.x - 6); pill.setAttribute("y", bb.y - 3);
+      pill.setAttribute("width", bb.width + 12); pill.setAttribute("height", bb.height + 6);
+      hookEdge(lg, i);
+    }
+  });
+
+  const order = Object.fromEntries(view.tour.map((id, i) => [id, i + 1]));
+  for (const n of view.nodes) {
+    const f = n.file && FILES[n.file];
+    const extra = view.files && f ? (f.st === "unused" ? " ghost" : f.st === "broken" ? " broken" : "") : "";
+    const g = el("g", { class: "node" + extra, tabindex: 0, role: "button", "data-id": n.id, style: `--z:${zvar(n.z)}`, "aria-label": `${n.t}. ${n.s}` }, nodeLayer);
+    el("rect", { x: n.x, y: n.y, width: n.w, height: H, rx: 9, class: "box" }, g);
+    el("circle", { cx: n.x + 17, cy: n.y + H * .38, r: 4.5, class: "pip" }, g);
+    el("text", { x: n.x + 31, y: n.y + H * .46, class: "t" }, g).textContent = n.t;
+    el("text", { x: n.x + 31, y: n.y + H * .79, class: "s" }, g).textContent = n.s;
+    if (order[n.id]) {
+      el("circle", { cx: n.x + n.w - 4, cy: n.y + 4, r: 11, class: "badge" }, g);
+      el("text", { x: n.x + n.w - 4, y: n.y + 8.5, "text-anchor": "middle", class: "badge-n" }, g).textContent = order[n.id];
+    }
+    g.addEventListener("click", () => { if (!moved) select(n.id, true); });
+    g.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(n.id, true); } });
+  }
+}
+function hookEdge(g, i) {
+  g.addEventListener("click", (ev) => { ev.stopPropagation(); if (!moved) selectEdge(i); });
+  g.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectEdge(i); } });
+}
+
+function setMarkers(g, e, hot) {
+  const p = g.querySelector("path.line");
+  if (!p) return;
+  const m = e.kind === "fail" ? "ah-fail" : hot ? "ah-hot" : "ah";
+  p.setAttribute("marker-end", `url(#${m})`);
+  if (e.both) p.setAttribute("marker-start", `url(#${m})`);
+}
+function highlight(nodeIds, edgeIdx) {
+  const svg = $("#map");
+  svg.classList.toggle("dim", nodeIds.size > 0);
+  svg.querySelectorAll(".edge").forEach((g) => {
+    const i = +g.dataset.i, e = view.edges[i];
+    const hot = edgeIdx !== null ? i === edgeIdx : (nodeIds.has(e.f) && (e.f === selected || e.t === selected)) || (nodeIds.has(e.t) && (e.f === selected || e.t === selected));
+    g.classList.toggle("hot", hot);
+    setMarkers(g, e, hot);
+  });
+  svg.querySelectorAll(".node").forEach((g) => {
+    const id = g.dataset.id;
+    g.classList.toggle("sel", edgeIdx === null ? id === selected : nodeIds.has(id));
+    g.classList.toggle("near", nodeIds.has(id));
+  });
+}
+
+function select(id, fromUser) {
+  selected = id; selEdge = null;
+  if (fromUser && view.tour.length) tourIdx = view.tour.indexOf(id);
+  const near = new Set([id]);
+  for (const e of view.edges) if (e.f === id || e.t === id) { near.add(e.f); near.add(e.t); }
+  highlight(near, null);
+  renderPanel();
+  renderTour();
+}
+function selectEdge(i) {
+  selEdge = i; selected = null;
+  const e = view.edges[i];
+  highlight(new Set([e.f, e.t]), i);
+  renderEdgePanel(e);
+  renderTour();
+}
+
+function flowList(steps) {
+  return `<ol class="flow">${steps.map(([a, b]) => `<li><b>${esc(a)}</b><span>${esc(b)}</span></li>`).join("")}</ol>`;
+}
+function codeButton(fileId) {
+  const f = FILES[fileId];
+  if (!f) return "";
+  return `<button class="codebtn" data-code="${fileId}"><span>View the code behind this<small>${esc(f.path)}</small></span><span aria-hidden="true">▸</span></button>`;
+}
+function wirePanel(p) {
+  p.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => {
+    select(b.dataset.go, true);
+    const t = document.querySelector(`.node[data-id="${CSS.escape(b.dataset.go)}"]`);
+    if (t) t.focus({ preventScroll: true });
+    scrollToSelected();
+  }));
+  p.querySelectorAll("[data-code]").forEach((b) => b.addEventListener("click", () => openCode(b.dataset.code, b)));
+}
+
+function renderPanel() {
+  const n = view.nodes.find((x) => x.id === selected);
+  const p = $("#panel");
+  if (!n) { p.innerHTML = ""; return; }
+  const f = n.file ? FILES[n.file] : null;
+  const byId = Object.fromEntries(view.nodes.map((x) => [x.id, x]));
+  const ins = view.edges.filter((e) => e.t === n.id), outs = view.edges.filter((e) => e.f === n.id);
+  const link = (e, dir) => {
+    const o = byId[dir === "in" ? e.f : e.t];
+    const dirIcon = e.kind === "run" ? "··" : e.both ? "⇄" : dir === "in" ? "←" : "→";
+    return `<button class="link" data-go="${o.id}"><span class="dir">${dirIcon}</span><span><b>${esc(o.t)}</b><span class="l">${esc(e.name || e.l || "")}</span></span></button>`;
+  };
+  const step = view.tour.indexOf(n.id);
+  p.style.setProperty("--z", zvar(n.z));
+  if (view.files && f) {
+    p.innerHTML = `
+      <div class="chiprow"><span class="zchip"><span class="dot"></span>${esc(ZONES[f.z].name)}</span><span class="stchip${f.st === "broken" || f.st === "unused" ? " bad" : ""}">${esc(STATUS[f.st])}</span></div>
+      <h3>${esc(f.t)}</h3>
+      <p class="path">${esc(f.path)}</p>
+      <p class="plain">${esc(f.plain)}</p>
+      ${codeButton(n.file)}
+      ${f.flow ? `<div><p class="sec" style="margin-bottom:8px">How data moves through this file</p>${flowList(f.flow)}</div>` : ""}
+      ${f.tested ? `<dl class="facts2"><dt>Tested by</dt><dd>${esc(f.tested)}</dd></dl>` : ""}
+      ${ins.length || outs.length ? `<div class="conns"><p class="sec">Data comes from · goes to</p>${ins.map((e) => link(e, "in")).join("")}${outs.map((e) => link(e, "out")).join("")}</div>` : `<p class="what" style="color:var(--muted)">No arrows: nothing in the project reads from or calls this file.</p>`}`;
+  } else {
+    const rows = [["Reads", n.reads], ["Sends", n.sends], ["Numbers", n.nums], ["Tested by", n.tested]].filter((r) => r[1]);
+    p.innerHTML = `
+      <span class="zchip"><span class="dot"></span>${esc(ZONES[n.z].name)}${step >= 0 ? ` · step ${step + 1}` : ""}</span>
+      <h3>${esc(n.t)}</h3>
+      <p class="plain">${esc(n.plain)}</p>
+      ${n.ex ? `<div class="example"><span class="lbl">Real example</span><pre>${esc(n.ex)}</pre></div>` : ""}
+      ${f ? codeButton(n.file) : ""}
+      ${n.path || n.what || rows.length ? `<p class="sec">Technical details</p>` : ""}
+      ${n.path ? `<p class="path">${esc(n.path)}</p>` : ""}
+      ${n.what ? `<p class="what">${esc(n.what)}</p>` : ""}
+      ${rows.length ? `<dl class="facts2">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
+      ${ins.length || outs.length ? `<div class="conns"><p class="sec">Comes from · goes to</p>${ins.map((e) => link(e, "in")).join("")}${outs.map((e) => link(e, "out")).join("")}</div>` : ""}`;
+  }
+  wirePanel(p);
+}
+
+function renderEdgePanel(e) {
+  const byId = Object.fromEntries(view.nodes.map((x) => [x.id, x]));
+  const a = byId[e.f], b = byId[e.t], p = $("#panel");
+  const desc = e.d || `This arrow shows ${e.l ? `"${e.l}"` : "data"} moving from ${a.t} to ${b.t}.`;
+  const end = (n) => `<div class="flowend"><b>${esc(n.t)}</b><span class="path">${esc(n.file ? FILES[n.file].path : n.s)}</span>
+      <button class="btn" data-go="${n.id}">Explain</button>${n.file ? `<button class="btn" data-code="${n.file}">View code ▸</button>` : ""}</div>`;
+  p.style.setProperty("--z", "var(--accent)");
+  p.innerHTML = `
+    <span class="zchip"><span class="dot"></span>${e.kind === "fail" ? "When something fails" : e.kind === "run" ? "Starts, runs or tests · no data" : e.both ? "Two-way · in and back" : "Data flow · one way"}</span>
+    <h3>${esc(e.name || e.l || "Flow")}</h3>
+    <p class="plain">${esc(desc)}</p>
+    <div class="flowends">${end(a)}<span class="flowarrow">${e.both ? "⇄" : "→"}</span>${end(b)}</div>`;
+  wirePanel(p);
+}
+
+function renderTour() {
+  const box = $("#tour");
+  if (!view.tour.length) { box.innerHTML = ""; return; }
+  const N = view.tour.length;
+  if (tourIdx < 0) {
+    box.innerHTML = `<button class="btn primary" id="tStart">Walk through ▸</button>`;
+    $("#tStart").onclick = () => { tourIdx = 0; select(view.tour[0]); scrollToSelected(); };
+    return;
+  }
+  box.innerHTML = `<button class="btn" id="tPrev" ${tourIdx === 0 ? "disabled" : ""}>◂ Back</button>
+    <span>Step ${tourIdx + 1} of ${N}</span>
+    <button class="btn primary" id="tNext" ${tourIdx === N - 1 ? "disabled" : ""}>Next ▸</button>`;
+  $("#tPrev").onclick = () => { tourIdx--; select(view.tour[tourIdx]); scrollToSelected(); };
+  $("#tNext").onclick = () => { tourIdx++; select(view.tour[tourIdx]); scrollToSelected(); };
+}
+function scrollToSelected() {
+  const t = selected && document.querySelector(`.node[data-id="${CSS.escape(selected)}"]`), sc = $("#scroller");
+  if (!t) return;
+  const r = t.getBoundingClientRect(), s = sc.getBoundingClientRect();
+  if (r.left < s.left || r.right > s.right || r.top < s.top || r.bottom > s.bottom) {
+    sc.scrollBy({ left: r.left - s.left - s.width / 2 + r.width / 2, top: r.top - s.top - s.height / 2 + r.height / 2, behavior: "smooth" });
+  }
+}
+
+function setView(id, remember) {
+  view = VIEWS.find((v) => v.id === id) || VIEWS[0];
+  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.v === view.id)));
+  $("#vtitle").textContent = view.title;
+  $("#vsub").textContent = view.sub;
+  $("#arrowNote").textContent = "How to read the arrows: " + (view.arrows || "");
+  draw();
+  select(view.tour[0] || (view.files ? "inference" : view.nodes[0].id));
+  // Show the first explanation, but keep the whole diagram at full strength until the reader clicks
+  $("#map").classList.remove("dim");
+  $("#map").querySelectorAll(".sel").forEach((g) => g.classList.remove("sel"));
+  $("#map").querySelectorAll(".edge.hot").forEach((g) => { g.classList.remove("hot"); setMarkers(g, view.edges[+g.dataset.i], false); });
+  tourIdx = -1;
+  renderTour();
+  $("#scroller").scrollTo(0, 0);
+  if (remember) { store.set("churniq-map-view", view.id); try { history.replaceState(null, "", "#" + view.id); } catch (e) {} }
+}
+
+/* ---------------------------------------------------------------- code sheet */
+let lastFocus = null;
+function appearsIn(fileId) {
+  const out = [];
+  for (const v of VIEWS) for (const n of v.nodes) if (n.file === fileId) out.push({ v, n });
+  return out;
+}
+function openCode(fileId, opener) {
+  const f = FILES[fileId];
+  if (!f) return;
+  lastFocus = opener || document.activeElement;
+  const rel = (ids) => ids.length ? ids.map((x) => `<button class="btn" data-file="${x}">${esc(FILES[x].path.split(" ")[0])}</button>`).join("") : `<em>none</em>`;
+  const tbl = (head, rows, cls) => `<div class="tbl"><table><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${cls[i] || ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  const where = appearsIn(fileId);
+  $("#sheet").innerHTML = `
+    <div class="sheet-head" style="--z:${zvar(f.z)}">
+      <div>
+        <div class="chiprow"><span class="zchip"><span class="dot"></span>${esc(ZONES[f.z].name)}</span><span class="stchip${f.st === "broken" || f.st === "unused" ? " bad" : ""}">${esc(STATUS[f.st])}</span></div>
+        <h2 id="cvTitle">${esc(f.t)}</h2>
+        <p class="path">${esc(f.path)}</p>
+      </div>
+      <button class="btn" id="cvClose" aria-label="Close">Close ✕</button>
+    </div>
+    <div class="sheet-body">
+      <section><h3>What this file does</h3><p class="plain">${esc(f.plain)}</p></section>
+      <section><h3>Where it fits</h3>
+        <div class="rel">
+          <div><span class="lbl">Uses (reads or calls)</span><div class="relbtns">${rel(f.uses)}</div></div>
+          <div><span class="lbl">Used by</span><div class="relbtns">${rel(f.usedBy)}</div></div>
+        </div>
+      </section>
+      ${f.flow ? `<section><h3>How data moves through this file</h3>${flowList(f.flow)}</section>` : ""}
+      ${f.fns ? `<section><h3>Main functions & parts</h3>${tbl(["Name", "What it does"], f.fns, ["code", ""])}</section>` : ""}
+      ${f.vars ? `<section><h3>Important variables & values</h3>${tbl(["Name", "Value", "Meaning"], f.vars, ["code", "val", ""])}</section>` : ""}
+      ${f.calcs ? `<section><h3>Calculations</h3><div class="calcs">${f.calcs.map(([t, fo, r]) => `<div class="calc"><b>${esc(t)}</b><span class="f">${esc(fo)}</span><span class="r">${esc(r)}</span></div>`).join("")}</div></section>` : ""}
+      ${f.code ? `<section><h3>Key code</h3><p class="code-lbl">${esc(f.lang || "")}. Excerpt from the real file, shortened to the important lines.</p><pre>${esc(f.code)}</pre></section>` : ""}
+      ${f.tested ? `<section><h3>Tested by</h3><p class="what">${esc(f.tested)}</p></section>` : ""}
+      ${f.notes ? `<section><h3>Good to know</h3><ul class="notes">${f.notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></section>` : ""}
+      ${where.length ? `<section><h3>Appears on these diagrams</h3><div class="relbtns">${where.map(({ v, n }) => `<button class="btn" data-jump="${v.id}|${n.id}">${esc(v.tab)} · ${esc(n.t)}</button>`).join("")}</div></section>` : ""}
+    </div>`;
+  const cv = $("#codeview");
+  cv.hidden = false;
+  cv.scrollTop = 0;
+  document.documentElement.style.overflow = "hidden";
+  $("#cvClose").onclick = closeCode;
+  $("#cvClose").focus({ preventScroll: true });
+  $("#sheet").querySelectorAll("[data-file]").forEach((b) => b.onclick = () => openCode(b.dataset.file, lastFocus));
+  $("#sheet").querySelectorAll("[data-jump]").forEach((b) => b.onclick = () => {
+    const [vid, nid] = b.dataset.jump.split("|");
+    closeCode();
+    setView(vid, true);
+    select(nid, true);
+    scrollToSelected();
+  });
+}
+function closeCode() {
+  $("#codeview").hidden = true;
+  document.documentElement.style.overflow = $("#stage").classList.contains("full") ? "hidden" : "";
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
+}
+$("#codeview").addEventListener("click", (e) => { if (e.target.id === "codeview") closeCode(); });
+
+/* ---------------------------------------------------------------- chrome */
+VIEWS.forEach((v, i) => {
+  const b = document.createElement("button");
+  b.className = "tab"; b.setAttribute("role", "tab"); b.dataset.v = v.id;
+  b.innerHTML = `<span class="n">${i + 1}</span>${esc(v.tab)}`;
+  b.onclick = () => setView(v.id, true);
+  $("#tabs").appendChild(b);
+});
+document.querySelectorAll("[data-path]").forEach((b) => b.onclick = () => {
+  setView(b.dataset.path, true);
+  $("#app").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("#legend").innerHTML = Object.values(ZONES).map((z) => `<span><i class="dot" style="--z:var(${z.v})"></i>${z.name}</span>`).join("") +
+  `<span><svg width="26" height="8" aria-hidden="true"><path d="M1 4h24" stroke="var(--fail)" stroke-width="2" stroke-dasharray="5 4"/></svg>when something fails</span>` +
+  `<span>Click boxes and arrows to explain them</span><span class="note" id="arrowNote"></span>`;
+$("#terms").innerHTML = TERMS.map(([t, d]) => `<div class="term"><b>${esc(t)}</b><span>${esc(d)}</span></div>`).join("");
+
+$("#zIn").onclick = () => zoomBy(1.2);
+$("#zOut").onclick = () => zoomBy(1 / 1.2);
+$("#zFit").onclick = () => { zoom = null; applyZoom(); };
+const stage = $("#stage");
+function onFullChange() {
+  const on = isFull();
+  $("#fs span").textContent = on ? "Exit full screen" : "Full screen";
+  document.documentElement.style.overflow = stage.classList.contains("full") ? "hidden" : "";
+  zoom = null;
+  applyZoom();
+  $("#scroller").scrollTo(0, 0);
+  requestAnimationFrame(applyZoom); // again once the new layout has settled
+}
+async function toggleFull() {
+  if (isFull()) {
+    if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (e) {} }
+    stage.classList.remove("full");
+    onFullChange();
+    return;
+  }
+  try {
+    if (!stage.requestFullscreen) throw new Error("no fullscreen");
+    await stage.requestFullscreen();
+  } catch (e) {
+    stage.classList.add("full"); // fallback: flowchart fills the page
+  }
+  onFullChange();
+}
+$("#fs").onclick = toggleFull;
+document.addEventListener("fullscreenchange", onFullChange);
+if (window.ResizeObserver) new ResizeObserver(() => { if (zoom === null && isFull()) applyZoom(); }).observe($("#scroller"));
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!$("#codeview").hidden) closeCode();
+  else if (stage.classList.contains("full")) toggleFull();
+});
+
+const sc = $("#scroller");
+let drag = null;
+sc.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  drag = { x: e.clientX, y: e.clientY, l: sc.scrollLeft, t: sc.scrollTop }; moved = false;
+});
+window.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!moved && Math.hypot(dx, dy) < 5) return;
+  moved = true; sc.classList.add("dragging");
+  sc.scrollLeft = drag.l - dx; sc.scrollTop = drag.t - dy;
+});
+window.addEventListener("pointerup", () => { drag = null; sc.classList.remove("dragging"); setTimeout(() => { moved = false; }, 0); });
+
+const fromHash = (location.hash || "").slice(1);
+const saved = store.get("churniq-map-view");
+setView(VIEWS.some((v) => v.id === fromHash) ? fromHash : VIEWS.some((v) => v.id === saved) ? saved : "start", false);
+</script>
+
+</body></html>
