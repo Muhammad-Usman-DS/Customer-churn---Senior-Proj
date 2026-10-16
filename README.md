@@ -553,7 +553,7 @@ cd Customer-churn---Senior-Proj
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-# 3. Run the tests (about 5 seconds)
+# 3. Run the tests (about 30 seconds)
 .venv/bin/python -m pytest
 
 # 4. (Optional) Retrain the model

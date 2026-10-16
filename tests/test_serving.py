@@ -5,7 +5,7 @@ import pytest
 from src.serving import inference
 from tests.conftest import TARGET
 
-N_CUSTOMERS = 200
+N_CUSTOMERS = None  # every customer in the dataset
 
 
 def test_serving_features_match_training(raw_customers, features_df, feature_cols):
