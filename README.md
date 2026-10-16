@@ -75,12 +75,11 @@ Step 1: DATA COLLECTION
           |
           v
 Step 2: DATA VALIDATION
-  └── Great Expectations checks run automatically:
-      - No null values in critical columns
-      - TotalCharges is numeric (not a string)
-      - Churn column contains only Yes/No
-      - All expected column names are present
-      - Row count is above minimum threshold
+  └── Great Expectations (62 checks) run automatically:
+      - All 21 expected columns are present
+      - Every categorical column contains only known values, no nulls
+      - customerID is present and unique
+      - tenure, MonthlyCharges, TotalCharges within valid ranges
           |
           v
 Step 3: PREPROCESSING
@@ -95,7 +94,6 @@ Step 4: FEATURE ENGINEERING
   └── src/features/build_features.py:
       - Binary encoding for 2-category columns (Gender, Partner, etc.)
       - One-hot encoding for multi-category columns (Contract, InternetService, etc.)
-      - VIF analysis to detect and remove multicollinear features
       - Result: 30 engineered numeric features ready for training
           |
           v
@@ -119,6 +117,8 @@ Step 7: EVALUATION
           v
 Step 8: SERVING
   └── FastAPI REST API (src/app/main.py):
+      - Inputs are cleaned and validated first; invalid values are
+        rejected with a clear error (HTTP 422) instead of guessed
       - POST /predict            → single customer prediction
       - POST /predict-batch      → bulk CSV prediction
       - GET  /feature-importance → for Insights page chart
@@ -128,7 +128,7 @@ Step 8: SERVING
 Step 9: FRONTEND
   └── React app (5 pages):
       Predict → BulkPredict → History → Insights → Dataset
-      Deployed on Vercel; calls Cloud Run backend via HTTPS
+      Deployed on Vercel; calls the Render backend via HTTPS
 ```
 
 ---
@@ -148,13 +148,14 @@ Raw data from Kaggle is rarely clean enough to feed directly into a model. Befor
 
 **Great Expectations** is a Python library for automated data quality testing. Think of it as a checklist that runs every single time training begins, verifying that the data meets a set of defined rules before any model training happens.
 
-We defined the following expectations for the Telco dataset:
+We defined 62 expectations for the Telco dataset:
 
-- The dataset must contain exactly the expected column names.
-- Critical columns (`tenure`, `MonthlyCharges`) must have no null values.
-- The `Churn` column must only contain `0` or `1` after encoding.
-- `TotalCharges` must be numeric after conversion.
-- Row count must exceed a minimum threshold (to catch accidental empty uploads).
+- **Schema:** all 21 expected columns must exist; `customerID` must be present and unique.
+- **Categories:** every categorical column (e.g. `Contract`, `PaymentMethod`, `Churn`) may only contain the values seen in the original data, with no nulls. `SeniorCitizen` must be 0 or 1.
+- **Ranges:** `tenure` must be 0–120 months, `MonthlyCharges` 0–200, and `TotalCharges` non-negative after conversion to a number.
+- **Consistency:** `TotalCharges` should be at least `MonthlyCharges` for 95%+ of customers (catches data-entry errors).
+
+Failures name the exact check and column, e.g. `expect_column_values_to_be_between(tenure)`.
 
 If any expectation fails, the pipeline halts and logs the failures to MLflow as an artifact before raising an error. This prevents a corrupt or incomplete dataset from silently producing a broken model.
 
@@ -180,19 +181,21 @@ For columns with exactly two possible values, we applied a deterministic 0/1 map
 
 ### One-Hot Encoding (multi-category columns)
 
-For columns with three or more categories (e.g., `Contract`: Month-to-month, One year, Two year), we used **one-hot encoding with `drop_first=True`**. This creates a new binary column for each category, except the first (which is implied when all others are 0), preventing a statistical problem called the **dummy variable trap**.
+For columns with three or more categories (e.g., `Contract`: Month-to-month, One year, Two year), we used **one-hot encoding with `drop_first=True`** during training. This creates a new binary column for each category, except the first (which is implied when all others are 0), preventing a statistical problem called the **dummy variable trap**.
 
 > **Business analogy:** Instead of storing "Contract = Month-to-month" as the number 1 (which would imply Month-to-month is somehow *greater than* One year), we create two new columns: `Contract_One_year` and `Contract_Two_year`. If a customer has a two-year contract, `Contract_Two_year = 1` and `Contract_One_year = 0`. If they have month-to-month, both are 0. The model reads these as independent signals, not an ordered scale.
+
+At prediction time the API applies the same encoding to one customer at a time. Because a single row only contains one category per column, serving one-hot encodes without dropping anything and then aligns the result to the 30 training columns, which drops the same baseline categories training did. Automated tests check that serving produces exactly the same 30 features as training for every customer in the dataset.
 
 ### VIF Analysis (Multicollinearity Detection)
 
 **Variance Inflation Factor (VIF)** is a statistical measure that detects when two features are so correlated with each other that they effectively carry the same information. For example, `TotalCharges` is approximately equal to `MonthlyCharges × tenure` — these three columns are highly correlated.
 
-We ran VIF analysis and collapsed or removed redundant features before training. Keeping highly correlated features does not improve a model; it adds noise, inflates apparent importance of duplicated signals, and can slow convergence.
+We ran VIF analysis during exploratory analysis (`EDA.ipynb`) to understand these relationships. The production model keeps all encoded features: tree-based models like XGBoost split on one feature at a time, so correlated inputs don't destabilise them the way they do linear models. The main side effect is that importance can be shared between correlated features, which is worth remembering when reading the feature importance chart.
 
-> **Business analogy:** If you hand a hiring committee both a candidate's total years of experience and a year-by-year employment history, they are reading the same information twice. It wastes their attention without adding value. We removed that redundancy from the model's inputs.
+> **Business analogy:** If you hand a hiring committee both a candidate's total years of experience and a year-by-year employment history, they are reading the same information twice. A linear model can get confused by this; a tree-based model simply uses whichever is more useful at each decision.
 
-The result of feature engineering is **30 numeric features** — expanded from the original 21 through encoding, and refined through VIF filtering.
+The result of feature engineering is **30 numeric features**, expanded from the 19 customer inputs through encoding.
 
 ---
 
@@ -263,11 +266,11 @@ A machine learning model has settings that control *how* it learns — these are
 
 | Parameter | What it controls | Range searched |
 |---|---|---|
-| `n_estimators` | Number of trees in the ensemble | 100 – 500 |
-| `learning_rate` | How much each tree corrects previous errors | 0.01 – 0.30 |
-| `max_depth` | Maximum depth of each decision tree | 3 – 9 |
-| `subsample` | Fraction of training rows used per tree | 0.6 – 1.0 |
-| `colsample_bytree` | Fraction of features considered per tree | 0.6 – 1.0 |
+| `n_estimators` | Number of trees in the ensemble | 300 – 800 |
+| `learning_rate` | How much each tree corrects previous errors | 0.01 – 0.20 |
+| `max_depth` | Maximum depth of each decision tree | 3 – 10 |
+| `subsample` | Fraction of training rows used per tree | 0.5 – 1.0 |
+| `colsample_bytree` | Fraction of features considered per tree | 0.5 – 1.0 |
 
 **Best hyperparameters found by Optuna:**
 
@@ -296,14 +299,14 @@ Final model metrics at threshold 0.35, evaluated on the held-out test set (1,409
 | **F1 Score** | **61.4%** | The harmonic mean of Recall and Precision. Useful for comparing models against each other on a single number. |
 | **ROC-AUC** | **83.7%** | If you pick a random churner and a random non-churner, the model will rank the churner as higher risk 83.7% of the time. A score of 50% is random guessing; 100% is perfect. |
 
-**Estimated confusion matrix on the test set (1,409 customers):**
+**Confusion matrix on the test set (1,409 customers):**
 
 | | Predicted: Will Churn | Predicted: Will Stay |
 |---|---|---|
-| **Actually Churned** | ~308 caught (True Positives) | ~67 missed (False Negatives) |
-| **Actually Stayed** | ~321 false alarms (False Positives) | ~713 correctly retained (True Negatives) |
+| **Actually Churned** | 307 caught (True Positives) | 67 missed (False Negatives) |
+| **Actually Stayed** | 319 false alarms (False Positives) | 716 correctly retained (True Negatives) |
 
-> **Plain English:** The model catches roughly 308 out of 375 actual churners. The retention team receives a list of ~629 names — 308 real churners and 321 customers who would have stayed anyway. That is a ~49% "hit rate" on the contact list. Without the model, the team would need to contact all 1,409 customers to find 375 churners — a 26.6% hit rate. **The model makes retention outreach approximately 1.84x more efficient.**
+> **Plain English:** The model catches 307 out of 374 actual churners. The retention team receives a list of 626 names — 307 real churners and 319 customers who would have stayed anyway. That is a 49% "hit rate" on the contact list. Without the model, the team would need to contact all 1,409 customers to find 374 churners — a 26.5% hit rate. **The model makes retention outreach approximately 1.85x more efficient.**
 
 ---
 
@@ -323,17 +326,18 @@ The model flags a customer as at-risk, but they were going to stay anyway. The r
 
 ### The mathematics of the trade-off
 
-At default threshold 0.5, assume the model catches 65% of churners and misses 35%.
-At our threshold 0.35, the model catches 82% of churners and misses 18%.
+Measured on the test set with the production model:
+- At the default threshold 0.5, the model catches 74.3% of churners and misses 25.7%.
+- At our threshold 0.35, the model catches 82.1% of churners and misses 17.9%.
 
-On a real customer base of 100,000 with 26,500 churners at $50/month average value:
+Scaled to a customer base of 100,000 with 26,500 churners at $50/month ($600/year) average value:
 
-| Scenario | Churners missed | Annual revenue lost | Extra false alarm calls | Cost of calls |
+| Scenario | Churners missed | Annual revenue at risk | Extra false alarm calls | Cost of calls (at $5–10 each) |
 |---|---|---|---|---|
-| Threshold 0.50 | 9,275 | ~$55.7M | Baseline | Baseline |
-| **Threshold 0.35** | **4,770** | **~$28.6M** | +2,000–3,000 | ~$15,000–$30,000 |
+| Threshold 0.50 | ~6,800 | ~$4.1M | Baseline | Baseline |
+| **Threshold 0.35** | **~4,750** | **~$2.8M** | ~+5,750 | ~$29,000–$57,000 |
 
-The additional retention calls at the lower threshold cost tens of thousands of dollars. The additional churners caught represent tens of millions in preserved revenue. **The math is not close.** A false alarm is always cheaper than a missed churner.
+Lowering the threshold catches about 2,050 more churners a year, roughly **$1.2M of revenue at risk** that the retention team now gets a chance to save, for about $30,000–$57,000 of extra outreach. **The math is not close.** A false alarm is far cheaper than a missed churner.
 
 ### Why not lower the threshold even further?
 
@@ -353,7 +357,7 @@ The core tool for a retention analyst. The analyst enters a single customer's de
 - A **risk level badge**: High (red), Medium (amber), or Low (green)
 - A plain-English **verdict**: "Likely to churn" or "Not likely to churn"
 
-Every prediction is automatically saved to the browser's local storage (up to 200 entries) and appears in the History page.
+Every successful prediction is automatically saved to the browser's local storage (up to 200 entries) and appears in the History page. Fields that depend on each other stay consistent: choosing "No" internet service locks the six internet add-ons to "No internet service" (and likewise for phone service and multiple lines), so the form can't describe a customer that doesn't exist.
 
 **Business value:** A retention agent can assess any customer's churn risk in under 30 seconds, from any computer, without needing to query a database or involve a data scientist.
 
@@ -364,12 +368,13 @@ Upload a CSV file containing multiple customers (with the same 19 columns as the
 - Summary cards: total customers processed, broken down by High / Medium / Low risk count
 - A scrollable results table with contract type, internet service, tenure, monthly charges, probability, and risk badge for each customer
 - A **Download CSV** button to export the full scored dataset for CRM import or management reporting
+- **Input checking:** values are matched regardless of capitalisation or stray spaces (`two year ` → `Two year`). Rows with unknown values, missing fields or impossible combinations are listed with the exact problem (e.g. `Row 3: Contract 'Two Yr' is not valid`) instead of being scored incorrectly; a file missing required columns is rejected with the list of missing columns
 
 **Business value:** A data analyst can run a weekly batch scoring job — export a segment from the CRM, upload it here, download the risk-scored list, and hand it directly to the retention team. No code required.
 
 ### 3. History Page
 
-A log of all past single predictions made in the current browser session, stored in `localStorage` — no server-side database required. Features:
+A log of past single predictions, stored in this browser's `localStorage` (it persists between visits on the same browser) — no server-side database required. Features:
 
 - Filter by risk level (All / High / Medium / Low)
 - Full table with timestamp, contract type, internet service, tenure, monthly charges, probability, risk badge, and verdict
@@ -386,7 +391,7 @@ A live model dashboard pulled directly from the API at page load. Displays:
 - A model info panel: algorithm name, classification threshold, number of training samples, training set churn rate, and an explanatory note
 - An interactive **feature importance bar chart** powered by XGBoost's built-in importance scores, sourced via the `/feature-importance` endpoint, with a dropdown to show the top 10, 15, 20, or all features
 
-**Business value:** Gives managers and stakeholders full transparency into the model's performance and which customer attributes it considers most important — no black box. A stakeholder can immediately see that contract type and tenure are the top predictors of churn, and use that to inform product and pricing strategy.
+**Business value:** Gives managers and stakeholders full transparency into the model's performance and which customer attributes it considers most important — no black box. A stakeholder can immediately see that contract type and internet service type (fiber optic) are the top predictors of churn, and use that to inform product and pricing strategy.
 
 ### 5. Dataset Page
 
@@ -414,7 +419,7 @@ The What-If mechanism is implemented in `frontend/src/pages/Predict.jsx`:
 
 ```javascript
 function handleChange(key, value) {
-  const updated = { ...form, [key]: value };
+  const updated = applyDependencies(form, key, value); // keeps internet/phone add-ons consistent
   setForm(updated);
   // In what-if mode, re-run prediction on every change
   if (whatIfMode && result) {
@@ -427,11 +432,12 @@ Every input field on the form calls `handleChange` when its value changes. In no
 
 On the backend, the full inference pipeline runs:
 1. `inference.py` receives the raw 19-field customer dictionary.
-2. `_serve_transform()` applies binary encoding, one-hot encoding, and feature alignment to produce a 30-feature array in the exact order the model expects.
-3. `sklearn_model.predict_proba()` scores the input and returns a churn probability.
-4. The probability is compared against the 0.35 threshold to produce a binary prediction.
-5. The risk level (High ≥ 65%, Medium ≥ 35%, Low < 35%) is assigned.
-6. The result JSON is returned to the frontend.
+2. `normalize_input()` cleans and checks it: trims spaces, matches categories regardless of case, and rejects unknown values or impossible combinations with a clear error.
+3. `_serve_transform()` applies binary encoding, one-hot encoding, and feature alignment to produce a 30-feature array in the exact order the model expects.
+4. `sklearn_model.predict_proba()` scores the input and returns a churn probability.
+5. The probability is compared against the 0.35 threshold to produce a binary prediction.
+6. The risk level (High ≥ 65%, Medium ≥ 35%, Low < 35%) is assigned.
+7. The result JSON is returned to the frontend.
 
 The result panel updates with the new probability and risk gauge in real time. The entire round trip — from changing a dropdown to seeing the updated probability on screen — takes under one second on a production connection.
 
@@ -459,7 +465,8 @@ This feature elevates the tool from a simple prediction endpoint to a genuine **
 |---|---|---|
 | **Data processing** | Pandas, NumPy | Data loading, cleaning, transformation |
 | **Data validation** | Great Expectations | Automated data quality checks before training |
-| **Feature engineering** | Pandas, scikit-learn | Binary encoding, one-hot encoding, VIF analysis |
+| **Feature engineering** | Pandas | Binary encoding, one-hot encoding |
+| **Testing** | pytest | Automated tests: data, validation, features, train/serve consistency, model quality, API |
 | **ML model** | XGBoost | Gradient boosted tree ensemble classifier |
 | **Hyperparameter tuning** | Optuna | Automated search over hyperparameter space (20 trials) |
 | **Experiment tracking** | MLflow | Logs parameters, metrics, model artifacts, and reports |
@@ -473,7 +480,7 @@ This feature elevates the tool from a simple prediction endpoint to a genuine **
 | **Container registry** | Docker Hub | Stores and serves built Docker images |
 | **Backend hosting** | Render | Container hosting for the FastAPI backend |
 | **Frontend hosting** | Vercel | Global CDN hosting for the React app |
-| **CI/CD** | GitHub Actions | Automated Docker build and push on every push to `main` |
+| **CI/CD** | GitHub Actions | Runs the tests, then builds and pushes the Docker image on every push to `main` |
 
 ---
 
@@ -497,20 +504,22 @@ The `mlruns/` directory is **gitignored** — it is large and machine-specific. 
 
 ### GitHub Actions (`/.github/workflows/ci.yml`)
 
-Every push to the `main` branch automatically triggers the following pipeline:
+Every push to the `main` branch automatically triggers two jobs:
 
-1. **Checkout** — GitHub Actions pulls the latest code from the repository.
-2. **Docker Buildx setup** — configures the modern Docker builder, which supports multi-platform image builds.
-3. **Docker Hub login** — authenticates using encrypted repository secrets (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`).
-4. **Build and push** — builds the Docker image from `dockerfile` and pushes it to `usmangoat/telco-fastapi:latest` on Docker Hub.
+1. **Test** — installs `requirements.txt` on Python 3.11 (the same version as the Docker image) and runs the full pytest suite. If any test fails, the pipeline stops here and no image is published.
+2. **Build and push** (only if the tests pass):
+   - **Docker Buildx setup** — configures the modern Docker builder, which supports multi-platform image builds.
+   - **Docker Hub login** — authenticates using encrypted repository secrets (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`).
+   - **Build and push** — builds the Docker image from `dockerfile` and pushes it to `usmangoat/telco-fastapi:latest` on Docker Hub.
 
-Every merged change is automatically packaged and published — no manual build steps, no "it works on my machine" problems.
+Every change is tested, then automatically packaged and published. A change that breaks the model or the API never reaches Docker Hub.
 
 ### Render (Backend)
 
 Render is a cloud platform that runs the Docker container from Docker Hub. Key properties:
 
 - Pulls `usmangoat/telco-fastapi:latest` from Docker Hub and runs it as a web service
+- A new image goes live when a deploy is triggered from the Render dashboard (**Manual Deploy → Deploy latest reference**); a previous deploy can be restored with **Rollback**
 - Exposes the FastAPI application on a public HTTPS URL: `https://telco-fastapi.onrender.com`
 - Free tier sleeps after 15 minutes of inactivity — first request after sleep takes ~30 seconds to wake up
 - The frontend's environment variable `VITE_API_URL` points to this URL
@@ -533,19 +542,24 @@ The React app (built with Vite) is deployed on Vercel. Vercel detects the `front
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Muhammad-Usman-DS/telco-customer-churn.git
-cd "Customer churn - Senior Proj"
+git clone https://github.com/Muhammad-Usman-DS/Customer-churn---Senior-Proj.git
+cd Customer-churn---Senior-Proj
 
-# 2. Install Python dependencies
-pip install -r requirements.txt
+# 2. Create a virtual environment and install Python dependencies
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
 
-# 3. (Optional) Retrain the model
-python scripts/run_pipeline.py \
+# 3. Run the tests (about 5 seconds)
+.venv/bin/python -m pytest
+
+# 4. (Optional) Retrain the model
+.venv/bin/python scripts/run_pipeline.py \
     --input data/WA_Fn-UseC_-Telco-Customer-Churn.csv \
     --target Churn
 
-# 4. Start the FastAPI server
-uvicorn src.app.main:app --reload --host 0.0.0.0 --port 8000
+# 5. Start the FastAPI server (MODEL_DIR points at the repo's model/ folder;
+#    inside Docker it defaults to /app/model)
+MODEL_DIR=model .venv/bin/python -m uvicorn src.app.main:app --reload --host 0.0.0.0 --port 8000
 
 # API available at:    http://localhost:8000
 # Interactive docs at: http://localhost:8000/docs

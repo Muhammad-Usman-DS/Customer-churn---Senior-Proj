@@ -172,12 +172,14 @@ used in production, the inspector checks a checklist:
 If the material fails the checklist, it is rejected before it damages any
 finished products. Great Expectations does the same thing for data.
 
-The expectations we defined for this dataset:
-  - The file must have all the expected column names (no typos, no missing columns)
-  - The "tenure" and "MonthlyCharges" columns must not have any blank (null) values
-  - The "Churn" column must only contain 0 or 1 (yes or no), not random text
-  - The "TotalCharges" column must be a number, not a string
-  - The total number of rows must exceed a minimum threshold
+The 62 expectations we defined for this dataset (src/utils/validate_data.py):
+  - All 21 expected columns must exist; customerID must be present and unique
+  - Every categorical column (gender, Contract, PaymentMethod, Churn, ...) may
+    only contain the values seen in the original data, and no blanks
+  - SeniorCitizen must be 0 or 1
+  - tenure must be 0-120 months, MonthlyCharges 0-200, and TotalCharges must
+    be a non-negative number
+  - TotalCharges should be at least MonthlyCharges for 95%+ of customers
 
 If any expectation fails:
   - The failure is recorded and logged
@@ -336,8 +338,12 @@ The model may end up attributing importance to the WRONG column just because
 it appears first, or it may split its attention between redundant signals.
 
 VIF analysis identifies which columns are highly correlated with others.
-We then collapsed or removed the redundant ones. The result is a cleaner,
-more informative set of features that the model can learn from more reliably.
+We ran it during exploratory analysis (EDA.ipynb) to understand these
+relationships. The production model keeps all 30 encoded features: XGBoost is
+a tree-based model that splits on one feature at a time, so correlated inputs
+don't destabilise it the way they would a linear model. The main side effect
+is that importance can be shared between correlated features, which is worth
+remembering when reading the feature importance chart.
 
 THE IMPORTANCE OF MATCHING TRAINING AND SERVING TRANSFORMATIONS
 ---------------------------------------------------------------
@@ -358,10 +364,16 @@ To prevent it, we:
   1. Save the exact feature column names and order to model/feature_columns.txt
   2. Use the same BINARY_MAP dictionary in both build_features.py and
      inference.py
-  3. Use pd.get_dummies(drop_first=True) in both places with the same columns
+  3. Training one-hot encodes with pd.get_dummies(drop_first=True). Serving
+     encodes ONE customer at a time, so it must use drop_first=False: with a
+     single row, each column has only one category, and drop_first=True would
+     drop it and zero out every one-hot feature (this bug was live once and
+     made Contract, InternetService etc. have no effect on predictions)
   4. Call df.reindex(columns=FEATURE_COLS, fill_value=0) in inference.py to
-     ensure the serving output always has exactly the right columns in exactly
-     the right order, even if the one-hot encoding produced a different set
+     put the columns in exactly the training order and drop the baseline
+     categories that training dropped
+  5. Automated tests (tests/test_serving.py) encode every customer in the
+     dataset both ways and fail if any of the 30 features differ
 
 
 ================================================================================
@@ -516,7 +528,7 @@ Missing a churner costs 100x or more compared to a false alarm. Therefore,
 we want the model to minimise missed churners — we want high "Recall."
 
 Recall = (churners correctly caught) / (all real churners)
-       = 308 / 375  ≈  82.1%
+       = 307 / 374  ≈  82.1%
 
 We tuned Optuna to maximise Recall, ensuring that finding the best
 hyperparameters was guided by the business cost structure, not a generic
@@ -786,6 +798,16 @@ When a user clicks "Predict Churn" on the website, this sequence happens:
   The raw 19-field dictionary is passed to the predict() function in
   inference.py.
 
+  STEP 2b — Clean and check the values (normalize_input)
+  Before anything else, each value is cleaned and checked:
+    - spaces are trimmed and capitalisation ignored ("two year " -> "Two year")
+    - unknown values ("Two Yr"), missing fields, negative numbers and impossible
+      combinations (no internet service but "Yes" to Online Security) are
+      rejected with a clear message. The API answers 422 with the list of
+      problems instead of guessing, because the model would otherwise quietly
+      treat an unknown value as the baseline category and give a confident
+      wrong answer.
+
   STEP 3 — Convert to DataFrame
   Inside predict(), the dictionary is wrapped in a pandas DataFrame:
     df = pd.DataFrame([input_dict])
@@ -804,16 +826,18 @@ When a user clicks "Predict Churn" on the website, this sequence happens:
 
     c) One-hot encoding: all remaining text columns (Contract, InternetService,
        MultipleLines, etc.) are one-hot encoded using pd.get_dummies with
-       drop_first=True
+       drop_first=False (see "The importance of matching training and serving
+       transformations" in Section 4 for why it is not drop_first=True here)
 
     d) Boolean conversion: any True/False columns from the one-hot encoding
        are converted to 1/0 integers (XGBoost needs integers, not booleans)
 
     e) Feature alignment: df.reindex(columns=FEATURE_COLS, fill_value=0)
        This is the critical step. It reorders the columns to exactly match the
-       training-time order AND fills in any columns that might be missing with
-       0 (this can happen if a one-hot category was not present in a single-row
-       input). The model receives exactly 30 columns in exactly the right order.
+       training-time order, fills the one-hot columns for categories this
+       customer does not have with 0, and drops the baseline-category columns
+       that training dropped. The model receives exactly 30 columns in exactly
+       the right order.
 
   STEP 5 — Score with the model
   sklearn_model.predict_proba(df_enc)[0][1] runs the XGBoost model on the
@@ -1074,11 +1098,16 @@ automatically runs a defined sequence of steps.
 OUR WORKFLOW FILE (.github/workflows/ci.yml)
 ---------------------------------------------
 
-This file defines one job called "build-and-push" that triggers on every push
-to the "main" branch. It runs on a virtual Ubuntu Linux machine provided by
-GitHub.
+This file defines two jobs that trigger on every push to the "main" branch.
+They run on virtual Ubuntu Linux machines provided by GitHub.
 
-The steps it performs:
+JOB 1: "test"
+  Installs Python 3.11 (the same version as the Docker image) and everything
+  in requirements.txt, then runs the full pytest suite in tests/. If any test
+  fails, the pipeline stops and no new image is published, so a change that
+  breaks the model or the API can never reach Docker Hub.
+
+JOB 2: "build-and-push" (only runs if "test" passed)
 
   STEP 1: CHECKOUT CODE
   GitHub Actions downloads the latest version of the code from GitHub onto the
@@ -1105,42 +1134,37 @@ The steps it performs:
   "latest" is a tag — like a version label. Every new build overwrites the
   "latest" tag, so Render always pulls the most recent version.
 
-The entire pipeline takes about 3-5 minutes to run. After it completes, the
-new version of the backend is available on Docker Hub and Render
-can be told to pull the new image.
+The entire pipeline takes about 4-5 minutes to run. After it completes, the
+new version of the backend is available on Docker Hub. It goes live when a
+deploy is triggered in the Render dashboard (Manual Deploy -> Deploy latest
+reference); Render keeps the previous version running until then.
 
 
 ================================================================================
-SECTION 15: WHAT IS GOOGLE CLOUD RUN AND VERCEL
+SECTION 15: WHAT ARE RENDER AND VERCEL
 ================================================================================
 
-GOOGLE CLOUD RUN (BACKEND HOSTING)
-------------------------------------
+RENDER (BACKEND HOSTING)
+------------------------
 
-Render is a "serverless container hosting" service. Here is what
-that means:
+Render is a managed hosting platform. YOU do not have to set up, patch or
+maintain any servers: you give it a Docker image and it runs it for you.
 
-  "Serverless" does NOT mean there is no server. It means YOU do not have to
-  manage, configure, or maintain any servers. Google handles all of that.
-  You just provide a Docker container and say "run this for me."
-
-  "Container hosting" means Render knows how to pull a Docker image from
-  Docker Hub and run it.
-
-When you deploy the backend to Render, you tell it:
-  - Which Docker image to use (usmangoat/telco-fastapi:latest)
-  - How much CPU and memory to give it
-  - Which port to listen on (8000)
+Our Render web service is configured with:
+  - Image: usmangoat/telco-fastapi:latest, pulled from Docker Hub
+  - Port: 8000 (where uvicorn listens inside the container)
 
 Render then:
-  - Gives you a public HTTPS URL (like https://telco-api-xxxx.run.app)
-  - Starts the container when requests arrive
-  - Shuts the container down when there is no traffic ("scales to zero")
-  - Spins up more instances automatically if many requests arrive at once
+  - Gives the service a public HTTPS URL: https://telco-fastapi.onrender.com
+  - Runs the container and restarts it if it crashes
+  - Deploys a new image when a deploy is triggered from the dashboard
+    (Manual Deploy -> Deploy latest reference), and can roll back to any
+    previous deploy with one click
 
-The "scales to zero" feature means you only pay when the API is actually being
-used — there is no cost for idle time. This makes Render very cost-efficient
-for APIs with intermittent traffic.
+We use Render's free tier. The trade-off is that the service sleeps after
+about 15 minutes without traffic; the first request after that waits roughly
+a minute while the container starts and loads the model. Later requests are
+fast.
 
 VERCEL (FRONTEND HOSTING)
 --------------------------

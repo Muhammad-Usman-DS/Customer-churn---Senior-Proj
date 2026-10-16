@@ -76,10 +76,19 @@ export default function Dataset() {
           </p>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={CHURN_PIE} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ name, value }) => `${name} ${value}%`} labelLine={false}>
+              {/* Labels live in the legend: outside-the-slice labels were clipped by the card at narrow widths */}
+              <Pie data={CHURN_PIE} cx="50%" cy="45%" outerRadius={70} dataKey="value">
                 {CHURN_PIE.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
               </Pie>
               <Tooltip formatter={(v) => `${v}%`} />
+              <Legend
+                verticalAlign="bottom"
+                iconType="circle"
+                iconSize={8}
+                formatter={(name, entry) => (
+                  <span className="text-xs text-slate-600">{name} {entry.payload.value}%</span>
+                )}
+              />
             </PieChart>
           </ResponsiveContainer>
         </div>
