@@ -1,4 +1,4 @@
-name: Build and Push to Docker Hub
+name: Test, Build and Deploy
 
 on:
   push:
@@ -42,9 +42,44 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./dockerfile  # change if your Dockerfile has a different name or path
           push: true
           tags: usmangoat/telco-fastapi:latest
+          build-args: GIT_SHA=${{ github.sha }}  # served at /version
+
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+  deploy:
+    needs: build-and-push  # Only deploy an image that passed the tests and was published
+    runs-on: ubuntu-latest
+    concurrency:  # A newer push supersedes a deploy still in progress
+      group: render-production
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Trigger Render deploy of this exact image
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          IMAGE: docker.io/usmangoat/telco-fastapi@${{ needs.build-and-push.outputs.digest }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL secret not set; skipping deploy (use Manual Deploy on Render)"
+            echo "SKIP_SMOKE=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          # Pin the deploy to the digest built above, not whatever :latest points to
+          IMG=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "$IMAGE")
+          curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}&imgURL=${IMG}" > /dev/null
+          echo "Deploy triggered for $IMAGE"
+
+      - name: Smoke test production
+        if: env.SKIP_SMOKE != '1'
+        run: python3 scripts/smoke_test.py https://telco-fastapi.onrender.com ${{ github.sha }}

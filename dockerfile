@@ -18,6 +18,10 @@ COPY . .
 COPY model/ /app/model/
 
 ENV PYTHONUNBUFFERED=1
+
+# Commit SHA baked in by CI, served at /version
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
 ENV PYTHONPATH=/app/src
 
 # 6. Expose FastAPI port

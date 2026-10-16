@@ -56,6 +56,13 @@ def root():
     return {"status": "ok"}
 
 
+# Which commit this server was built from (set by CI as a Docker build arg).
+# CI polls this after triggering a Render deploy to know when the new version is live.
+@app.get("/version")
+def version():
+    return {"git_sha": os.environ.get("GIT_SHA", "unknown")}
+
+
 # === REQUEST SCHEMA ===
 class CustomerData(BaseModel):
     """19-feature schema for a single customer churn prediction request."""

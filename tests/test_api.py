@@ -18,6 +18,7 @@ from src.app.main import (
     get_prediction,
     predict_batch,
     root,
+    version,
 )
 
 SAMPLE = {
@@ -45,6 +46,11 @@ SAMPLE = {
 
 def test_health():
     assert root() == {"status": "ok"}
+
+
+def test_version_reports_build_commit(monkeypatch):
+    monkeypatch.setenv("GIT_SHA", "abc1234")
+    assert version() == {"git_sha": "abc1234"}
 
 
 def test_predict_returns_valid_response():
